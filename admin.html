@@ -63,7 +63,8 @@
   .menu hr { border:none; border-top:1px solid var(--border); margin:6px 4px; }
 
   /* ─── CONTENIDO ─── */
-  .main { padding:24px 20px; max-width:1100px; margin:0 auto; }
+  .main { padding:24px 20px; max-width:1680px; margin:0 auto; }
+  #sec-usuarios, #sec-parametros, #sec-feriados { max-width:1100px; }
   .main h3 { font-size:20px; font-weight:800; margin-bottom:4px; }
   .sec-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .main p.sub { font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:18px; line-height:1.5; }
@@ -73,6 +74,8 @@
 
   .filtros { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
   .filtros .campo { min-width:150px; }
+  .filtros .campo.ancho { min-width:340px; }
+  .filtros .campo.ancho select { width:100%; }
   .filtros label { margin-top:0; }
   .filtros select, .filtros input[type="date"] { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--font-mono); font-size:14px; outline:none; color-scheme:dark; }
   .filtros select:focus, .filtros input[type="date"]:focus { border-color:var(--accent); }
@@ -81,14 +84,14 @@
   .chip b { color:var(--text); }
   .chip.warn { border-color:rgba(255,165,2,.5); color:var(--warn); }
   .chip.warn b { color:var(--warn); }
-  .dia { margin-bottom:16px; }
-  .dia h4 { font-size:14px; font-weight:800; color:var(--accent); margin:0 0 6px 2px; }
   .scroll-x { overflow-x:auto; }
-  table.tabla.reg { table-layout:fixed; min-width:820px; }
-  table.tabla.reg th:nth-child(1) { width:21%; } table.tabla.reg th:nth-child(2) { width:10%; }
-  table.tabla.reg th:nth-child(3) { width:8%; }  table.tabla.reg th:nth-child(4) { width:17%; }
-  table.tabla.reg th:nth-child(5) { width:10%; } table.tabla.reg th:nth-child(6) { width:22%; }
-  table.tabla.reg th:nth-child(7) { width:12%; }
+  table.tabla.reg { table-layout:fixed; min-width:1050px; }
+  table.tabla.reg th:nth-child(1) { width:13%; } table.tabla.reg th:nth-child(2) { width:25%; }
+  table.tabla.reg th:nth-child(3) { width:8%; }  table.tabla.reg th:nth-child(4) { width:7%; }
+  table.tabla.reg th:nth-child(5) { width:13%; } table.tabla.reg th:nth-child(6) { width:8%; }
+  table.tabla.reg th:nth-child(7) { width:18%; } table.tabla.reg th:nth-child(8) { width:8%; }
+  table.tabla.reg td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  table.tabla.reg tr.nuevo-dia td { border-top:2px solid var(--border); }
   table.tabla td.det { color:var(--muted); font-family:var(--font-mono); font-size:12px; max-width:340px; }
   table.tabla td.num { font-family:var(--font-mono); white-space:nowrap; }
   table.tabla tr.abierta td { background:rgba(255,165,2,.06); }
@@ -187,7 +190,7 @@
         </div>
       </div>
       <form class="filtros" id="form-reg" autocomplete="off">
-        <div class="campo">
+        <div class="campo ancho">
           <label for="reg-usuario">Empleado</label>
           <select id="reg-usuario"><option value="">Todos</option></select>
         </div>
@@ -438,10 +441,9 @@ function rangoDelMes(ym) {
   return { desde: ym + '-01', hasta: ym + '-' + String(ultimo).padStart(2, '0') };
 }
 
-function fmtDiaISO(iso) {            // '2026-10-24' -> 'Sábado 24/10/2026'
+function fmtDiaCorto(iso) {          // '2026-10-24' -> 'Sáb 24/10/2026'
   const [a, m, d] = iso.split('-').map(Number);
-  const f = new Date(a, m - 1, d);
-  const dia = f.toLocaleDateString('es-AR', { weekday: 'long' });
+  const dia = new Date(a, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
   return dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + a;
 }
 function hhmm(ts) { return ts ? ts.substring(11, 16) : ''; }
@@ -500,48 +502,43 @@ function renderRegistros(regs, truncado) {
     return;
   }
 
-  // agrupar por día de inicio (ya vienen ordenados del más nuevo al más viejo)
-  const grupos = [];
+  // una sola tabla: un registro por fila (ya vienen del más nuevo al más viejo)
+  const sx = document.createElement('div'); sx.className = 'scroll-x';
+  const tb = document.createElement('table'); tb.className = 'tabla reg';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th></tr></thead>';
+  const body = document.createElement('tbody');
+  let diaPrevio = null;
   regs.forEach(r => {
     const dia = r.inicio.substring(0, 10);
-    let g = grupos[grupos.length - 1];
-    if (!g || g.dia !== dia) { g = { dia: dia, items: [] }; grupos.push(g); }
-    g.items.push(r);
-  });
+    const tr = document.createElement('tr');
+    const clases = [];
+    if (r.abierta) clases.push('abierta');
+    if (diaPrevio !== null && dia !== diaPrevio) clases.push('nuevo-dia');
+    tr.className = clases.join(' ');
+    diaPrevio = dia;
 
-  grupos.forEach(g => {
-    const wrap = document.createElement('div'); wrap.className = 'dia';
-    const h = document.createElement('h4'); h.textContent = fmtDiaISO(g.dia); wrap.appendChild(h);
-    const sx = document.createElement('div'); sx.className = 'scroll-x';
-    const tb = document.createElement('table'); tb.className = 'tabla reg';
-    tb.innerHTML = '<thead><tr><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th></tr></thead>';
-    const body = document.createElement('tbody');
-    g.items.forEach(r => {
-      const tr = document.createElement('tr');
-      if (r.abierta) tr.className = 'abierta';
-      celda(tr, r.usuario, 'nombre');
-      const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov')); tr.appendChild(tdT);
-      if (r.tipo === 'JORNADA') {
-        celda(tr, hhmm(r.inicio), 'num');
-        const tdF = document.createElement('td'); tdF.className = 'num';
-        if (r.abierta) tdF.appendChild(badge('Sin cerrar', 'warn'));
-        else {
-          tdF.appendChild(document.createTextNode(hhmm(r.fin)));
-          if (r.cruzaDia) { tdF.appendChild(document.createTextNode(' ')); tdF.appendChild(badge('día siguiente', 'warn')); }
-        }
-        tr.appendChild(tdF);
-        celda(tr, r.abierta ? '—' : fmtDur(r.minutos), 'num');
-        celda(tr, r.observaciones || '', 'det');
-        celdaUbicacion(tr, r.ubicacionInicio);
-      } else {
-        celda(tr, '—', 'num'); celda(tr, '—', 'num'); celda(tr, '—', 'num');
-        celda(tr, r.descripcion || '', 'det');
-        celdaUbicacion(tr, r.ubicacionInicio);
+    celda(tr, fmtDiaCorto(dia), 'num');
+    celda(tr, r.usuario, 'nombre');
+    const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov')); tr.appendChild(tdT);
+    if (r.tipo === 'JORNADA') {
+      celda(tr, hhmm(r.inicio), 'num');
+      const tdF = document.createElement('td'); tdF.className = 'num';
+      if (r.abierta) tdF.appendChild(badge('Sin cerrar', 'warn'));
+      else {
+        tdF.appendChild(document.createTextNode(hhmm(r.fin)));
+        if (r.cruzaDia) { tdF.appendChild(document.createTextNode(' ')); tdF.appendChild(badge('día siguiente', 'warn')); }
       }
-      body.appendChild(tr);
-    });
-    tb.appendChild(body); sx.appendChild(tb); wrap.appendChild(sx); cont.appendChild(wrap);
+      tr.appendChild(tdF);
+      celda(tr, r.abierta ? '—' : fmtDur(r.minutos), 'num');
+      const tdD = celda(tr, r.observaciones || '', 'det'); tdD.title = r.observaciones || '';
+    } else {
+      celda(tr, '—', 'num'); celda(tr, '—', 'num'); celda(tr, '—', 'num');
+      const tdD = celda(tr, r.descripcion || '', 'det'); tdD.title = r.descripcion || '';
+    }
+    celdaUbicacion(tr, r.ubicacionInicio);
+    body.appendChild(tr);
   });
+  tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
 }
 
 function llenarEmpleados(lista) {
