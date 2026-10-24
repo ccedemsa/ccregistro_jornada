@@ -65,6 +65,7 @@
   /* ─── CONTENIDO ─── */
   .main { padding:24px 20px; max-width:1100px; margin:0 auto; }
   .main h3 { font-size:20px; font-weight:800; margin-bottom:4px; }
+  .sec-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .main p.sub { font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:18px; line-height:1.5; }
   .vacio { background:var(--surface); border:1px dashed var(--border); border-radius:16px; padding:48px 20px; text-align:center; color:var(--muted); font-family:var(--font-mono); font-size:13px; line-height:1.6; }
   .vacio b { display:block; color:var(--text); font-family:var(--font-display); font-size:18px; margin-bottom:8px; }
@@ -161,8 +162,13 @@
 
     <!-- configuración -->
     <div id="sec-usuarios" class="hidden">
-      <h3>Usuarios</h3>
-      <p class="sub">Empleados que pueden registrar jornadas. La baja bloquea el acceso; los registros anteriores se conservan.</p>
+      <div class="sec-head">
+        <div>
+          <h3>Usuarios</h3>
+          <p class="sub">Empleados que pueden registrar jornadas. La baja bloquea el acceso; los registros anteriores se conservan.</p>
+        </div>
+        <button class="btn btn-sec btn-sm" id="btn-usr-refrescar">&#8635; Actualizar</button>
+      </div>
       <form class="alta-form" id="form-usr-alta" autocomplete="off">
         <div class="campo">
           <label for="usr-nuevo">Nuevo empleado</label>
@@ -395,6 +401,15 @@ async function cargarUsuarios() {
   $('usr-tabla').classList.remove('hidden');
   renderUsuarios();
 }
+
+$('btn-usr-refrescar').addEventListener('click', async () => {
+  const btn = $('btn-usr-refrescar');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Actualizando...';
+  try { await cargarUsuarios(); }
+  finally { btn.disabled = false; btn.innerHTML = original; }
+});
 
 $('form-usr-alta').addEventListener('submit', async ev => {
   ev.preventDefault();

@@ -743,8 +743,11 @@
     <button class="btn btn-secondary btn-sm" onclick="abrirConfirmacionReset()" style="color:var(--danger); border-color: rgba(255,71,87,.3);">
       🗑 Borrar datos y volver al inicio
     </button>
+    <button class="btn btn-secondary btn-sm" onclick="cerrarSesion()">
+      🔒 Cerrar sesión
+    </button>
     <button class="btn btn-secondary btn-sm" onclick="cerrarModal('modal-perfil')">
-      Cerrar
+      Volver
     </button>
   </div>
 </div>
@@ -776,23 +779,79 @@ const STATE = {
 // ═══════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════
+// ─── Sesión del empleado: se cierra a los 30 minutos sin actividad ───
+// El equipo sigue habilitado: al volver solo pide el nombre, no la clave.
+const SESION_MAX_MS = 30 * 60 * 1000;
+let _actTs = 0;
+
+function marcarActividad(forzar) {
+  const n = Date.now();
+  if (!forzar && n - _actTs < 10000) return;       // se registra como mucho cada 10 s
+  _actTs = n;
+  if (STATE.usuario && STATE.userId) localStorage.setItem('rj_ultima_actividad', String(n));
+}
+
+function cerrarSesion(motivo) {
+  localStorage.setItem('rj_sesion_cerrada', '1');
+  localStorage.removeItem('rj_jornada_activa');       // el estado real vive en el Sheet y se recupera al volver a entrar
+  localStorage.removeItem('rj_ultima_actividad');
+  if (motivo) { try { sessionStorage.setItem('rj_aviso_login', motivo); } catch (e) {} }
+  location.reload();                                   // recarga limpia: sin datos del usuario anterior en pantalla
+}
+
+function chequearInactividad() {
+  if (!STATE.usuario || !STATE.userId) return;
+  const ultima = parseInt(localStorage.getItem('rj_ultima_actividad') || '0', 10);
+  if (ultima && Date.now() - ultima > SESION_MAX_MS) {
+    cerrarSesion('La sesión se cerró por inactividad (30 minutos). Volvé a ingresar tu nombre.');
+  }
+}
+
+['pointerdown', 'keydown', 'touchstart', 'scroll', 'input'].forEach(ev =>
+  document.addEventListener(ev, () => marcarActividad(false), { passive: true, capture: true }));
+setInterval(chequearInactividad, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') chequearInactividad();
+});
+
 function init() {
-  STATE.usuario = localStorage.getItem('rj_usuario');
-  STATE.userId = localStorage.getItem('rj_user_id');
   STATE.sheetUrl = APPS_SCRIPT_URL;
-  const jornadaStr = localStorage.getItem('rj_jornada_activa');
-  if (jornadaStr) {
-    try { STATE.jornadaActiva = JSON.parse(jornadaStr); } catch(e) {}
+
+  // Sesión vencida mientras la app estaba cerrada
+  if (localStorage.getItem('rj_sesion_cerrada') !== '1') {
+    const ultima = parseInt(localStorage.getItem('rj_ultima_actividad') || '0', 10);
+    if (ultima && Date.now() - ultima > SESION_MAX_MS) {
+      localStorage.setItem('rj_sesion_cerrada', '1');
+      localStorage.removeItem('rj_jornada_activa');
+      localStorage.removeItem('rj_ultima_actividad');
+      try { sessionStorage.setItem('rj_aviso_login', 'La sesión se cerró por inactividad (30 minutos). Volvé a ingresar tu nombre.'); } catch (e) {}
+    }
   }
 
-  if (!STATE.usuario || !STATE.userId) {
-    if (STATE.usuario) document.getElementById('input-nombre').value = STATE.usuario;
+  if (localStorage.getItem('rj_sesion_cerrada') === '1') {
+    // Sesión cerrada: se pide el nombre de nuevo (el equipo sigue habilitado)
     mostrarScreen('onboarding');
+    let aviso = null;
+    try { aviso = sessionStorage.getItem('rj_aviso_login'); sessionStorage.removeItem('rj_aviso_login'); } catch (e) {}
+    if (aviso) toast(aviso, 'warn');
   } else {
-    mostrarScreen('main');
-    actualizarUIJornada();
-    pedirUbicacion();
-    sincronizarEstado();
+    STATE.usuario = localStorage.getItem('rj_usuario');
+    STATE.userId = localStorage.getItem('rj_user_id');
+    const jornadaStr = localStorage.getItem('rj_jornada_activa');
+    if (jornadaStr) {
+      try { STATE.jornadaActiva = JSON.parse(jornadaStr); } catch(e) {}
+    }
+
+    if (!STATE.usuario || !STATE.userId) {
+      if (STATE.usuario) document.getElementById('input-nombre').value = STATE.usuario;
+      mostrarScreen('onboarding');
+    } else {
+      mostrarScreen('main');
+      actualizarUIJornada();
+      pedirUbicacion();
+      sincronizarEstado();
+      marcarActividad(!localStorage.getItem('rj_ultima_actividad'));
+    }
   }
   iniciarReloj();
 }
@@ -929,9 +988,12 @@ document.getElementById('btn-guardar-config').addEventListener('click', async ()
     } else if (data.estado === 'OK' && data.token) {
       localStorage.setItem('rj_usuario', nombre);
       localStorage.setItem('rj_user_id', data.token);
+      localStorage.removeItem('rj_sesion_cerrada');
       STATE.usuario = nombre;
       STATE.userId = data.token;
+      marcarActividad(true);
       ['input-clave', 'input-clave-nueva', 'input-clave-repetir'].forEach(i => document.getElementById(i).value = '');
+      document.getElementById('input-nombre').value = '';
       obMostrarPaso('nombre');
       mostrarScreen('main');
       actualizarUIJornada();
