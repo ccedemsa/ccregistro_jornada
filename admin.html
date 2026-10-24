@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0d0f14">
+<title>Gestión de Jornadas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#0d0f14; --surface:#161a22; --surface2:#1e2330; --border:#2a3040;
+    --accent:#00e5a0; --accent2:#ff6b35; --text:#e8ecf4; --muted:#6b7589;
+    --danger:#ff4757; --warn:#ffa502;
+    --font-display:'Syne',sans-serif; --font-mono:'DM Mono',monospace;
+  }
+  html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font-display); -webkit-font-smoothing:antialiased; }
+  .hidden { display:none !important; }
+
+  /* ─── LOGIN / CAMBIO DE CLAVE ─── */
+  .center { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .card { width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 24px; }
+  .card h1 { font-size:22px; font-weight:800; color:var(--accent); margin-bottom:6px; }
+  .card p.sub { font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:20px; line-height:1.5; }
+  label { display:block; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 6px; }
+  input[type="text"], input[type="password"] {
+    width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+    padding:13px 14px; color:var(--text); font-family:var(--font-mono); font-size:15px; outline:none;
+  }
+  input:focus { border-color:var(--accent); }
+  .btn {
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    margin-top:20px; padding:14px 20px; border:none; border-radius:12px; cursor:pointer;
+    font-family:var(--font-display); font-size:15px; font-weight:700;
+    background:linear-gradient(135deg,var(--accent) 0%,#00c88a 100%); color:#0d0f14;
+  }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-sec { background:var(--surface2); border:1px solid var(--border); color:var(--text); }
+  .btn-sm { width:auto; margin-top:0; padding:8px 14px; font-size:13px; border-radius:8px; }
+  .msg { font-family:var(--font-mono); font-size:12px; color:var(--danger); margin-top:12px; min-height:16px; line-height:1.4; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spinner { width:16px; height:16px; border:2px solid rgba(0,0,0,.2); border-top-color:currentColor; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
+
+  /* ─── APP ─── */
+  .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .topbar h2 { font-size:18px; font-weight:800; color:var(--accent); }
+  .topbar .who { font-family:var(--font-mono); font-size:12px; color:var(--muted); }
+  .topbar .acciones { display:flex; align-items:center; gap:10px; }
+  .main { padding:24px 20px; max-width:1100px; margin:0 auto; }
+  .vacio { background:var(--surface); border:1px dashed var(--border); border-radius:16px; padding:48px 20px; text-align:center; color:var(--muted); font-family:var(--font-mono); font-size:13px; line-height:1.6; }
+  .vacio b { display:block; color:var(--text); font-family:var(--font-display); font-size:18px; margin-bottom:8px; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; }
+  .toast.show { opacity:1; }
+  .toast.success { border-color:rgba(0,229,160,.4); color:var(--accent); }
+  .toast.error { border-color:rgba(255,71,87,.4); color:var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="vista-login" class="center hidden">
+  <form class="card" id="form-login" autocomplete="on">
+    <h1>Gestión de Jornadas</h1>
+    <p class="sub">Ingresá con tu usuario de gestor.</p>
+    <label for="login-usuario">Usuario</label>
+    <input type="text" id="login-usuario" autocomplete="username" autocapitalize="characters" style="text-transform:uppercase;" maxlength="60">
+    <label for="login-clave">Contraseña</label>
+    <input type="password" id="login-clave" autocomplete="current-password">
+    <div class="msg" id="login-msg"></div>
+    <button type="submit" class="btn" id="btn-login">Ingresar</button>
+  </form>
+</div>
+
+<!-- CAMBIO DE CLAVE -->
+<div id="vista-clave" class="center hidden">
+  <form class="card" id="form-clave" autocomplete="off">
+    <h1 id="clave-titulo">Cambiar contraseña</h1>
+    <p class="sub" id="clave-sub"></p>
+    <div id="bloque-clave-actual">
+      <label for="clave-actual">Contraseña actual</label>
+      <input type="password" id="clave-actual" autocomplete="current-password">
+    </div>
+    <label for="clave-nueva">Contraseña nueva (mínimo 6 caracteres)</label>
+    <input type="password" id="clave-nueva" autocomplete="new-password">
+    <label for="clave-repetir">Repetir contraseña nueva</label>
+    <input type="password" id="clave-repetir" autocomplete="new-password">
+    <div class="msg" id="clave-msg"></div>
+    <button type="submit" class="btn" id="btn-clave">Guardar contraseña</button>
+    <button type="button" class="btn btn-sec hidden" id="btn-clave-cancelar">Cancelar</button>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="vista-app" class="hidden">
+  <div class="topbar">
+    <h2>Gestión de Jornadas</h2>
+    <div class="acciones">
+      <span class="who" id="app-quien"></span>
+      <button class="btn btn-sec btn-sm" id="btn-cambiar-clave">Cambiar contraseña</button>
+      <button class="btn btn-sec btn-sm" id="btn-salir">Salir</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="vacio">
+      <b>Control diario</b>
+      Próximamente: listado diario, autorización de horas y resumen mensual.
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqh-h9zFaHOmpKOdXbaqL9L1Bu7KRuW-CIXsn8fGFMqVDSqBOthjS0bmbTfCDTAfwq/exec';
+const TOKEN_KEY = 'gj_token';
+const $ = id => document.getElementById(id);
+
+let SESION = { token: null, nombre: '', debeCambiar: false };
+
+// ─── utilidades ───
+function toast(msg, tipo = 'success') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + tipo + ' show';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function mostrar(vista) {
+  ['login', 'clave', 'app'].forEach(v => $('vista-' + v).classList.toggle('hidden', v !== vista));
+}
+
+function guardarToken(t) { try { sessionStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
+function leerToken()     { try { return sessionStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+function borrarToken()   { try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+
+// Todas las llamadas son POST (el token nunca viaja en la URL). Timeout de 30 s.
+async function llamar(payload) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain' },   // evita preflight en Apps Script
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+    return await resp.json();
+  } catch (e) {
+    return { error: e.name === 'AbortError' ? 'El servidor tardó demasiado. Probá de nuevo.' : 'Error de conexión con el servidor' };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// Botón con spinner mientras espera
+async function conSpinner(btn, textoEspera, fn) {
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> ' + textoEspera;
+  try { return await fn(); }
+  finally { btn.disabled = false; btn.innerHTML = original; }
+}
+
+// ─── sesión ───
+function entrarALaApp() {
+  $('app-quien').textContent = SESION.nombre;
+  mostrar('app');
+}
+
+function irACambioClave(forzado) {
+  $('clave-titulo').textContent = forzado ? 'Elegí tu contraseña' : 'Cambiar contraseña';
+  $('clave-sub').textContent = forzado
+    ? 'Es tu primer ingreso: tenés que reemplazar la contraseña inicial antes de continuar.'
+    : 'Ingresá tu contraseña actual y la nueva.';
+  $('bloque-clave-actual').classList.toggle('hidden', forzado);
+  $('btn-clave-cancelar').classList.toggle('hidden', forzado);
+  ['clave-actual', 'clave-nueva', 'clave-repetir'].forEach(i => $(i).value = '');
+  $('clave-msg').textContent = '';
+  mostrar('clave');
+  setTimeout(() => $(forzado ? 'clave-nueva' : 'clave-actual').focus(), 50);
+}
+
+function cerrarLocal() {
+  borrarToken();
+  SESION = { token: null, nombre: '', debeCambiar: false };
+  $('login-clave').value = '';
+  $('login-msg').textContent = '';
+  mostrar('login');
+  setTimeout(() => $('login-usuario').focus(), 50);
+}
+
+$('form-login').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const usuario = $('login-usuario').value.trim().replace(/\s+/g, ' ').toUpperCase();
+  const clave = $('login-clave').value;
+  if (!usuario || !clave) { $('login-msg').textContent = 'Ingresá usuario y contraseña'; return; }
+  $('login-msg').textContent = '';
+  const r = await conSpinner($('btn-login'), 'Ingresando...', () => llamar({ accion: 'gestor_login', usuario, clave }));
+  if (r.error) { $('login-msg').textContent = r.error; $('login-clave').value = ''; return; }
+  SESION = { token: r.token, nombre: r.nombre, debeCambiar: !!r.debeCambiar };
+  guardarToken(r.token);
+  $('login-clave').value = '';
+  if (SESION.debeCambiar) irACambioClave(true); else entrarALaApp();
+});
+
+$('form-clave').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const actual = $('clave-actual').value, nueva = $('clave-nueva').value, rep = $('clave-repetir').value;
+  const msg = $('clave-msg');
+  msg.textContent = '';
+  if (!SESION.debeCambiar && !actual) { msg.textContent = 'Ingresá tu contraseña actual'; return; }
+  if (nueva.length < 6)  { msg.textContent = 'La contraseña nueva debe tener al menos 6 caracteres'; return; }
+  if (nueva !== rep)     { msg.textContent = 'Las contraseñas nuevas no coinciden'; return; }
+  const r = await conSpinner($('btn-clave'), 'Guardando...', () =>
+    llamar({ accion: 'gestor_cambiar_clave', token: SESION.token, claveActual: actual, claveNueva: nueva }));
+  if (r.error) {
+    if (/Sesión vencida/.test(r.error)) { cerrarLocal(); toast('La sesión venció. Ingresá de nuevo.', 'error'); return; }
+    msg.textContent = r.error; return;
+  }
+  SESION.debeCambiar = false;
+  toast('Contraseña actualizada');
+  entrarALaApp();
+});
+
+$('btn-clave-cancelar').addEventListener('click', entrarALaApp);
+$('btn-cambiar-clave').addEventListener('click', () => irACambioClave(false));
+
+$('btn-salir').addEventListener('click', async () => {
+  const token = SESION.token;
+  await conSpinner($('btn-salir'), 'Saliendo...', () => llamar({ accion: 'gestor_logout', token }));
+  cerrarLocal();
+});
+
+// Al abrir / recargar: si hay token guardado, se valida contra el servidor
+async function init() {
+  const token = leerToken();
+  if (!token) { cerrarLocal(); return; }
+  const r = await llamar({ accion: 'gestor_sesion', token });
+  if (r.error) { cerrarLocal(); if (/Sesión vencida/.test(r.error)) toast('La sesión venció. Ingresá de nuevo.', 'error'); return; }
+  SESION = { token, nombre: r.nombre, debeCambiar: !!r.debeCambiar };
+  if (SESION.debeCambiar) irACambioClave(true); else entrarALaApp();
+}
+
+// ============================================================
+// CHEQUEO DE VERSIÓN — patrón estándar del ecosistema (P8/P20, 01/09)
+// ------------------------------------------------------------
+// Reemplaza al Método A (GET del archivo completo + hash propio en JS).
+// Misma deteccion a una fraccion del costo: SIA son ~300 KB que se
+// bajaban y hasheaban en cada carga; ahora es un HEAD.
+//
+// Este bloque es IDENTICO al de APP014 y al que va a las demas apps.
+// SIA es el caso N=1: un solo archivo propio, sin CSS ni JS externos
+// (el unico <script src> es supabase-js por CDN, que el filtro por
+// origen descarta). No hay nada especial por eso -- la lista se deriva
+// del DOM igual que en una app de nueve modulos.
+//
+// DOS MOMENTOS, UNA SOLA DETECCION
+//   { recargar: true }  -- al arrancar, ANTES de restaurar la sesion:
+//                          no hay nada en pantalla que perder.
+//   { recargar: false } -- en sesion: avisa y decide el usuario.
+//   Asi ninguna app necesita una guarda propia por modales, filtros
+//   o formularios a medio llenar, que era la pieza que no se podia
+//   unificar entre apps distintas.
+//
+// NOTA DE TRANSICION (01/09): la clave de localStorage es la misma que
+// usaba el Metodo A, pero el VALOR cambia de formato (hash numerico ->
+// ETag). En el deploy de transicion eso produce dos recargas
+// encadenadas por usuario, una sola vez: el codigo viejo detecta el
+// cambio y recarga, y el nuevo compara el ETag contra el hash numerico
+// viejo y recarga otra vez. Decidido a proposito: la alternativa era
+// una clave nueva, que deja basura en el localStorage de todos.
+// ============================================================
+const VER_KEY       = 'appVersion_' + window.location.pathname;
+const VER_PISO_MS   = 5 * 60 * 1000;    // piso entre chequeos por visibilidad
+const VER_PERIODO   = 15 * 60 * 1000;   // rechequeo periodico
+const VER_TIMEOUT   = 8000;
+let   _verUltimo    = 0;
+let   _verAvisando  = false;
+
+// Archivos propios que componen esta version de la app.
+function _verArchivos() {
+  const lista = [window.location.pathname];
+  document.querySelectorAll('script[src]').forEach(s => lista.push(s.src));
+  document.querySelectorAll('link[rel="stylesheet"]').forEach(l => lista.push(l.href));
+  // Solo mismo origen: los CDN cambian por su cuenta.
+  return lista.filter(u => {
+    try { return new URL(u, location.href).origin === location.origin; }
+    catch { return false; }
+  });
+}
+
+// Marca de version = ETag (o Last-Modified) de cada archivo, concatenados.
+// Devuelve null si alguno no da ninguna de las dos: sin marca confiable
+// no se hace nada, que es preferible a avisar de mas.
+async function _verMarca() {
+  const ctrl = new AbortController();
+  const to   = setTimeout(() => ctrl.abort(), VER_TIMEOUT);
+  try {
+    const marcas = await Promise.all(_verArchivos().map(async url => {
+      // El `_=` NO es cosmetico: `cache:'no-store'` evita la cache del
+      // navegador pero no la del borde. GitHub Pages sirve detras de un
+      // CDN con max-age, asi que sin bustear la clave de cache el borde
+      // devuelve el ETag viejo hasta ~10 min despues del deploy y el
+      // chequeo concluye que no hay nada nuevo. El ETag que vuelve sigue
+      // siendo el del archivo real, asi que la marca no se ensucia.
+      const u = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+      const r = await fetch(u, { method: 'HEAD', cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok) return null;
+      return r.headers.get('ETag') || r.headers.get('Last-Modified') || null;
+    }));
+    return marcas.some(m => m === null) ? null : marcas.join('|');
+  } catch (e) {
+    return null;   // sin red, timeout, etc. -- no se hace nada
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// Recarga preservando el querystring. Deja una marca en sessionStorage
+// (misma pestaña, sobrevive a la recarga) para avisar del otro lado.
+function _verRecargar() {
+  try { sessionStorage.setItem('_verActualizada', '1'); } catch (e) {}
+  const qs = window.location.search;
+  window.location.href = window.location.pathname +
+    (qs ? qs + '&' : '?') + 'nocache=' + Date.now();
+}
+
+// Aviso persistente. Se crea desde JS, sin depender de nada del HTML,
+// para que el bloque se copie tal cual a las otras apps. El texto
+// entero es el link; no hay boton de cerrar a proposito.
+function _verAviso() {
+  if (_verAvisando) return;
+  _verAvisando = true;
+  const barra = document.createElement('div');
+  barra.id = 'avisoVersion';
+  barra.style.cssText =
+    'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+    'background:#1e40af;color:#fff;text-align:center;padding:7px 14px;' +
+    'font-family:system-ui,sans-serif;font-size:13px;font-weight:500;' +
+    'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+  barra.textContent = 'Hay una versión nueva disponible — clic acá para actualizar';
+  barra.onclick = () => {
+    if (confirm('Se va a recargar la página para aplicar la versión nueva.\n' +
+                'Vas a perder lo que tengas a medio hacer.\n\n¿Actualizar ahora?')) {
+      _verRecargar();
+    }
+  };
+  document.body.appendChild(barra);
+}
+
+// Aviso de "ya estás en la última versión", despues de una recarga.
+function _verToastActualizada() {
+  if (sessionStorage.getItem('_verActualizada') !== '1') return;
+  sessionStorage.removeItem('_verActualizada');
+  const t = document.createElement('div');
+  t.style.cssText =
+    'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+    'background:#15803d;color:#fff;text-align:center;padding:7px 14px;' +
+    'font-family:system-ui,sans-serif;font-size:13px;font-weight:500;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.25);transition:opacity .4s;';
+  t.textContent = 'Actualizado a la última versión';
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 400);
+  }, 4000);
+}
+
+async function chequearVersion(opts) {
+  const recargar = !!(opts && opts.recargar);
+  _verUltimo = Date.now();
+  const marca = await _verMarca();
+  if (!marca) return;
+
+  const guardada = localStorage.getItem(VER_KEY);
+  if (guardada === null) { localStorage.setItem(VER_KEY, marca); return; }
+  if (guardada === marca) return;
+
+  if (recargar) {
+    localStorage.setItem(VER_KEY, marca);
+    _verRecargar();
+  } else {
+    // No se guarda la marca todavia: se guarda al recargar, para que el
+    // aviso siga vigente si el usuario lo posterga.
+    _verAviso();
+  }
+}
+
+// Rechequeo al volver a la pestaña, con piso.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - _verUltimo < VER_PISO_MS) return;
+  chequearVersion();
+});
+
+// Rechequeo periodico. SIA no tiene un timer propio donde colgarse
+// (APP014 usa su refresh de datos de 10 min), asi que lleva el suyo.
+setInterval(() => chequearVersion(), VER_PERIODO);
+
+
+// ═══════════════════════════════════════════
+//  ARRANCAR
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  init();
+  chequearVersion({ recargar: true });
+  _verToastActualizada();
+});
+</script>
+</body>
+</html>
