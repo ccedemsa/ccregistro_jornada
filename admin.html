@@ -192,12 +192,8 @@
           <select id="reg-usuario"><option value="">Todos</option></select>
         </div>
         <div class="campo">
-          <label for="reg-desde">Desde</label>
-          <input type="date" id="reg-desde">
-        </div>
-        <div class="campo">
-          <label for="reg-hasta">Hasta</label>
-          <input type="date" id="reg-hasta">
+          <label for="reg-mes">Mes</label>
+          <select id="reg-mes"></select>
         </div>
         <button type="submit" class="btn btn-sec btn-sm" id="btn-reg-actualizar">&#8635; Actualizar</button>
       </form>
@@ -411,12 +407,36 @@ async function llamarGestor(accion, extra) {
 // ─── registros diarios ───
 let REG_CARGANDO = false;
 let REG_INICIADO = false;
+let REG_PENDIENTE = false;
 
-function hoyISO() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const MESES_ATRAS = 12;
+
+// Opciones del selector: "En curso" (mes actual) y los 12 meses anteriores como 09/2026
+function poblarMeses() {
+  const sel = $('reg-mes');
+  const previo = sel.value;
+  const hoy = new Date();
+  const valores = [];
+  sel.innerHTML = '';
+  for (let i = 0; i <= MESES_ATRAS; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const valor = d.getFullYear() + '-' + mm;
+    const o = document.createElement('option');
+    o.value = valor;
+    o.textContent = i === 0 ? 'En curso' : mm + '/' + d.getFullYear();
+    sel.appendChild(o);
+    valores.push(valor);
+  }
+  sel.value = valores.indexOf(previo) >= 0 ? previo : valores[0];
 }
-function primeroDelMesISO() { return hoyISO().substring(0, 8) + '01'; }
+
+// '2026-10' -> { desde: '2026-10-01', hasta: '2026-10-31' }
+function rangoDelMes(ym) {
+  const [a, m] = ym.split('-').map(Number);
+  const ultimo = new Date(a, m, 0).getDate();
+  return { desde: ym + '-01', hasta: ym + '-' + String(ultimo).padStart(2, '0') };
+}
 
 function fmtDiaISO(iso) {            // '2026-10-24' -> 'Sábado 24/10/2026'
   const [a, m, d] = iso.split('-').map(Number);
@@ -534,10 +554,9 @@ function llenarEmpleados(lista) {
 }
 
 async function cargarRegistros() {
-  if (REG_CARGANDO) return;
-  const desde = $('reg-desde').value, hasta = $('reg-hasta').value;
-  if (!desde || !hasta) { toast('Elegí las fechas desde y hasta', 'error'); return; }
-  if (desde > hasta) { toast('La fecha desde no puede ser posterior a la fecha hasta', 'error'); return; }
+  if (REG_CARGANDO) { REG_PENDIENTE = true; return; }      // cambió el filtro mientras cargaba: se vuelve a pedir al terminar
+  if (!$('reg-mes').value) poblarMeses();
+  const { desde, hasta } = rangoDelMes($('reg-mes').value);
   REG_CARGANDO = true;
   const btn = $('btn-reg-actualizar');
   const original = btn.innerHTML;
@@ -555,14 +574,16 @@ async function cargarRegistros() {
     REG_CARGANDO = false;
     btn.disabled = false; btn.innerHTML = original;
     $('reg-cargando').classList.add('hidden');
+    if (REG_PENDIENTE) { REG_PENDIENTE = false; cargarRegistros(); }
   }
 }
 
 $('form-reg').addEventListener('submit', ev => { ev.preventDefault(); cargarRegistros(); });
+$('reg-mes').addEventListener('change', cargarRegistros);
+$('reg-usuario').addEventListener('change', cargarRegistros);
 
 function iniciarRegistros() {
-  if (!$('reg-desde').value) $('reg-desde').value = primeroDelMesISO();
-  if (!$('reg-hasta').value) $('reg-hasta').value = hoyISO();
+  poblarMeses();                       // se rearma por si cambió el mes con la app abierta
   if (!REG_INICIADO) cargarRegistros();
 }
 
