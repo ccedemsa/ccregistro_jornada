@@ -168,6 +168,8 @@
   .btn-icono .spinner { width:12px; height:12px; border-color:var(--border); border-top-color:var(--accent); }
   table.tabla s.nc { color:var(--muted); opacity:.85; }
   table.tabla .th-sub { text-transform:none; letter-spacing:0; font-size:10px; opacity:.8; }
+  table.tabla td.hdec { font-size:17px; font-weight:600; }
+  table.tabla td.hdec .dec { font-size:11.5px; font-weight:400; }
   table.tabla .dec { display:block; font-size:11.5px; color:var(--muted); margin-top:1px; }
   table.tabla .aut-ok { color:var(--accent); font-weight:600; }
   table.tabla .sin-aut { color:var(--muted); }
@@ -925,12 +927,12 @@ function fmtHM(min) {                 // 510 -> '8:30'; 0 -> '—'
 function fmtDec(min) {                 // 510 -> '8,50' (horas decimales, 2 decimales, coma)
   return (Math.round(min / 60 * 100) / 100).toFixed(2).replace('.', ',');
 }
-function celdaHoras(tr, min) {         // h:mm y decimal, para el cálculo monetario
-  const td = document.createElement('td'); td.className = 'num';
-  if (!min) td.textContent = '—';
+function celdaHoras(tr, min) {         // decimal grande (para el cálculo monetario) y h:mm chico abajo
+  const td = document.createElement('td'); td.className = 'num hdec';
+  if (!min) { td.textContent = '—'; td.style.fontWeight = '400'; }
   else {
-    td.appendChild(document.createTextNode(fmtHM(min)));
-    const d = document.createElement('span'); d.className = 'dec'; d.textContent = fmtDec(min); d.title = 'Horas en decimal';
+    td.appendChild(document.createTextNode(fmtDec(min)));
+    const d = document.createElement('span'); d.className = 'dec'; d.textContent = fmtHM(min); d.title = 'Horas y minutos';
     td.appendChild(d);
   }
   tr.appendChild(td);
@@ -1020,7 +1022,7 @@ function renderInforme(r) {
   }
 
   // totales por empleado
-  const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'h:mm y horas decimales'; h4.appendChild(hs); cont.appendChild(h4);
+  const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'horas decimales y h:mm'; h4.appendChild(hs); cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
   const t1 = document.createElement('table'); t1.className = 'tabla';
   t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
@@ -1053,7 +1055,7 @@ function renderInforme(r) {
 
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Jornada</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
   const filas = INF_SOLO_CAMBIOS && !INF_EDIT ? r.filas.filter(d => d.estado === 'cambio') : r.filas;
