@@ -120,7 +120,7 @@
   table.tabla td { padding:12px 14px; border-top:1px solid var(--border); font-size:14px; vertical-align:middle; }
   /* tabla con títulos fijos: al desplazar la página, los títulos quedan pegados al borde superior */
   .scroll-x.fija { overflow:visible; }
-  table.tabla.fija { overflow:visible; }
+  table.tabla.fija { overflow:visible; border-collapse:separate; border-spacing:0; }
   table.tabla.fija th { position:sticky; top:0; z-index:5; box-shadow:0 1px 0 var(--border); }
   table.tabla.fija th:first-child { border-top-left-radius:14px; }
   table.tabla.fija th:last-child { border-top-right-radius:14px; }
@@ -598,8 +598,8 @@ function renderRegistros(regs, truncado) {
   }
 
   // una sola tabla: un registro por fila (ya vienen del más nuevo al más viejo)
-  const sx = document.createElement('div'); sx.className = 'scroll-x';
-  const tb = document.createElement('table'); tb.className = 'tabla reg';
+  const sx = document.createElement('div'); sx.className = 'scroll-x fija';
+  const tb = document.createElement('table'); tb.className = 'tabla reg fija';
   tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th></tr></thead>';
   const body = document.createElement('tbody');
   let diaPrevio = null;
