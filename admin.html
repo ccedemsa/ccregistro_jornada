@@ -118,6 +118,12 @@
   table.tabla { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
   table.tabla th { text-align:left; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:12px 14px; background:var(--surface2); }
   table.tabla td { padding:12px 14px; border-top:1px solid var(--border); font-size:14px; vertical-align:middle; }
+  /* tabla con títulos fijos: al desplazar la página, los títulos quedan pegados al borde superior */
+  .scroll-x.fija { overflow:visible; }
+  table.tabla.fija { overflow:visible; }
+  table.tabla.fija th { position:sticky; top:0; z-index:5; box-shadow:0 1px 0 var(--border); }
+  table.tabla.fija th:first-child { border-top-left-radius:14px; }
+  table.tabla.fija th:last-child { border-top-right-radius:14px; }
   table.tabla td.nombre { font-weight:700; }
   table.tabla td.acc button { margin:2px 8px 2px 0; }
   table.tabla tr.baja td { opacity:.55; }
@@ -725,8 +731,8 @@ function renderInforme(r) {
 
   // detalle por día
   const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:24px 0 10px;'; h5.textContent = 'Detalle por día'; cont.appendChild(h5);
-  const sx = document.createElement('div'); sx.className = 'scroll-x';
-  const tb = document.createElement('table'); tb.className = 'tabla';
+  const sx = document.createElement('div'); sx.className = 'scroll-x fija';
+  const tb = document.createElement('table'); tb.className = 'tabla fija';
   tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
