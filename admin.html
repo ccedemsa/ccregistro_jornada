@@ -406,6 +406,31 @@
   </div>
 </div>
 
+<!-- MODAL: agregar jornada -->
+<div class="modal-fondo hidden" id="modal-crear">
+  <div class="modal">
+    <h3>Agregar jornada</h3>
+    <p class="sub" id="cr-det"></p>
+    <label>Inicio</label>
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:10px;">
+      <input type="text" id="cr-ini-f" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+      <input type="text" id="cr-ini-h" placeholder="HH:mm" inputmode="numeric" maxlength="5" autocomplete="off">
+    </div>
+    <label>Fin</label>
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:10px;">
+      <input type="text" id="cr-fin-f" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+      <input type="text" id="cr-fin-h" placeholder="HH:mm" inputmode="numeric" maxlength="5" autocomplete="off">
+    </div>
+    <label for="cr-motivo">Motivo (obligatorio)</label>
+    <input type="text" id="cr-motivo" maxlength="200" autocomplete="off" placeholder="Ej: Trabajó pero no registró la jornada">
+    <div class="msg" id="cr-msg"></div>
+    <div class="acciones-form">
+      <button type="button" class="btn btn-sm" id="cr-ok">Agregar jornada</button>
+      <button type="button" class="btn btn-sec btn-sm" id="cr-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: editar jornada -->
 <div class="modal-fondo hidden" id="modal-editar">
   <div class="modal">
@@ -734,7 +759,8 @@ function renderRegistros(regs, truncado) {
     if (r.editado) {
       const e = r.editado;
       const orig = e.inicioOriginal ? ' Original: ' + e.inicioOriginal.substring(8, 10) + '/' + e.inicioOriginal.substring(5, 7) + ' ' + hhmm(e.inicioOriginal) + ' a ' + (e.finOriginal ? hhmm(e.finOriginal) : 'sin cerrar') + '.' : '';
-      const be = badge('Editado', 'aus'); be.title = 'Editado por ' + e.gestor + ' (' + e.cuando + ')' + (e.veces > 1 ? ', ' + e.veces + ' veces' : '') + '. Motivo: ' + e.motivo + '.' + orig;
+      const be = badge(e.alta ? 'Cargada' : 'Editado', 'aus');
+      if (e.alta && e.veces === 1) be.title = 'Cargada por el gestor ' + e.gestor + ' (' + e.cuando + '). Motivo: ' + e.motivo.replace(/^ALTA: /, '') + '.'; else be.title = 'Editado por ' + e.gestor + ' (' + e.cuando + ')' + (e.veces > 1 ? ', ' + e.veces + ' veces' : '') + '. Motivo: ' + e.motivo + '.' + orig;
       tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(be);
     }
     tr.appendChild(tdT);
@@ -913,6 +939,7 @@ const TIPO_DIA_ROT = { 'LUN-VIE': 'Lun a vie', 'SABADO': 'Sábado', 'DOMINGO': '
 
 let INF_FILTRO_USUARIO = '';
 // empleado tachado (ícono del botón de ausencia)
+const ICONO_MAS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const ICONO_AUSENTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
 
 let INF_DATA = null;
@@ -1026,7 +1053,7 @@ function renderInforme(r) {
 
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Ausencia</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
   const filas = INF_SOLO_CAMBIOS && !INF_EDIT ? r.filas.filter(d => d.estado === 'cambio') : r.filas;
@@ -1049,7 +1076,7 @@ function renderInforme(r) {
     if (d.tipoDia !== 'LUN-VIE') tdT.className = 'finde';                 // sábado, domingo y feriado: naranja (si el día no está atenuado)
     if (d.feriado) tdT.title = d.feriado;
     d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
-    if (d.editado) { tdT.appendChild(document.createTextNode(' ')); const be = badge('Editado', 'aus'); be.title = 'Alguna jornada de este día fue editada por el gestor (ver Registros diarios)'; tdT.appendChild(be); }
+    if (d.editado) { tdT.appendChild(document.createTextNode(' ')); const be = badge('Editado', 'aus'); be.title = 'Alguna jornada de este día fue editada o cargada por el gestor (ver Registros diarios)'; tdT.appendChild(be); }
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     if (d.estado === 'cambio') {
       const bc = badge('Cambió', 'cambio');
@@ -1084,6 +1111,12 @@ function renderInforme(r) {
         bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
         bq.title = 'Quitar ausente (' + d.ausente.motivo + ')'; bq.setAttribute('aria-label', 'Quitar ausente'); bq.innerHTML = ICONO_AUSENTE; tdA.appendChild(bq);
       } else if (!d.futuro && !d.fueraDeMes) {
+        if (!d.tieneRegistro) {
+          const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'btn-icono';
+          bc.dataset.crear = '1'; bc.dataset.usuario = d.usuario; bc.dataset.fecha = d.fecha;
+          bc.title = 'Agregar jornada'; bc.setAttribute('aria-label', 'Agregar jornada'); bc.innerHTML = ICONO_MAS; tdA.appendChild(bc);
+          tdA.appendChild(document.createTextNode(' '));
+        }
         const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
         bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
         bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
@@ -1149,6 +1182,46 @@ $('inf-lista').addEventListener('click', async ev => {
       toast('Autorizaciones guardadas');
     });
   }
+});
+
+// ─── agregar jornada que el empleado no registró ───
+let CR_CTX = null;
+['cr-ini-f', 'cr-fin-f'].forEach(i => mascaraFecha($(i)));
+['cr-ini-h', 'cr-fin-h'].forEach(i => mascaraHora($(i)));
+function cerrarModalCrear() { $('modal-crear').classList.add('hidden'); CR_CTX = null; }
+$('inf-lista').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-crear]');
+  if (!b) return;
+  CR_CTX = { usuario: b.dataset.usuario, fecha: b.dataset.fecha };
+  const p = partesTs(b.dataset.fecha + ' 00:00:00');
+  $('cr-det').textContent = b.dataset.usuario + ' · ' + fmtDiaCorto(b.dataset.fecha) + '. Queda marcada como cargada por el gestor y auditada.';
+  $('cr-ini-f').value = p.f; $('cr-ini-h').value = '07:00';
+  $('cr-fin-f').value = p.f; $('cr-fin-h').value = FIN_SUGERIDO;
+  $('cr-motivo').value = ''; $('cr-msg').textContent = '';
+  $('modal-crear').classList.remove('hidden');
+  setTimeout(() => $('cr-ini-h').focus(), 50);
+});
+$('cr-cancel').addEventListener('click', cerrarModalCrear);
+$('modal-crear').addEventListener('click', ev => { if (ev.target === $('modal-crear')) cerrarModalCrear(); });
+$('cr-ok').addEventListener('click', async () => {
+  if (!CR_CTX) return;
+  const msg = $('cr-msg'); msg.textContent = '';
+  const inicio = juntarTs($('cr-ini-f').value, $('cr-ini-h').value);
+  if (!inicio) { msg.textContent = 'Revisá el inicio: fecha dd/mm/aaaa y hora HH:mm'; return; }
+  const fin = juntarTs($('cr-fin-f').value, $('cr-fin-h').value);
+  if (!fin) { msg.textContent = 'Revisá el fin: fecha dd/mm/aaaa y hora HH:mm'; return; }
+  if (fin <= inicio) { msg.textContent = 'El fin tiene que ser posterior al inicio'; return; }
+  const motivo = $('cr-motivo').value.trim();
+  if (!motivo) { msg.textContent = 'El motivo es obligatorio'; return; }
+  const ctx = CR_CTX;
+  await conSpinner($('cr-ok'), 'Guardando...', async () => {
+    const r = await llamarGestor('gestor_jornada_crear', { usuario: ctx.usuario, inicio, fin, motivo, filtroUsuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) msg.textContent = r.error; return; }
+    cerrarModalCrear();
+    REG_INICIADO = false;
+    mostrarInformeActualizado(r);
+    toast('Jornada agregada');
+  });
 });
 
 // ─── ausencias (marcar / quitar) ───
