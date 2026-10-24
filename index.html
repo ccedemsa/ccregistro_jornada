@@ -790,12 +790,26 @@ function mostrarScreen(s) {
   document.getElementById('screen-' + (s === 'main' ? 'main' : 'onboarding')).classList.add('active');
 }
 
+// Fecha de hoy (hora local) en formato yyyy-MM-dd para el campo de novedades
+function fechaNovedadHoy() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function prepararFechaNovedad(forzar) {
+  const el = document.getElementById('input-novedad-fecha');
+  if (!el) return;
+  const hoy = fechaNovedadHoy();
+  el.max = hoy;
+  if (forzar || !el.value) el.value = hoy;
+}
+
 function switchTab(tab) {
   ['inicio','novedades','historial'].forEach(t => {
     document.getElementById('tab-content-' + t).style.display = t === tab ? '' : 'none';
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
   });
   if (tab === 'historial') cargarHistorial();
+  if (tab === 'novedades') prepararFechaNovedad(false);
 }
 
 // ═══════════════════════════════════════════
@@ -1273,7 +1287,7 @@ async function registrarNovedad() {
   btn.innerHTML = '📝&nbsp; Registrar Novedad';
   if (ok) {
     document.getElementById('input-novedad').value = '';
-    document.getElementById('input-novedad-fecha').value = '';
+    prepararFechaNovedad(true);
     STATE.historialLocal.unshift({ tipo: 'novedad', ts: ahora, desc });
   }
 }
@@ -1809,6 +1823,7 @@ document.addEventListener('DOMContentLoaded', function() {
     abrirPerfil();
   });
   init();
+  prepararFechaNovedad(true);
   chequearVersion({ recargar: true });
   _verToastActualizada();
 });
