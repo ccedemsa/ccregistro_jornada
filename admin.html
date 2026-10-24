@@ -65,7 +65,7 @@
     <h1>Gestión de Jornadas</h1>
     <p class="sub">Ingresá con tu usuario de gestor.</p>
     <label for="login-usuario">Usuario</label>
-    <input type="text" id="login-usuario" autocomplete="username" autocapitalize="characters" style="text-transform:uppercase;" maxlength="60">
+    <input type="text" id="login-usuario" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" style="text-transform:lowercase;" maxlength="60">
     <label for="login-clave">Contraseña</label>
     <input type="password" id="login-clave" autocomplete="current-password">
     <div class="msg" id="login-msg"></div>
@@ -194,7 +194,7 @@ function cerrarLocal() {
 
 $('form-login').addEventListener('submit', async ev => {
   ev.preventDefault();
-  const usuario = $('login-usuario').value.trim().replace(/\s+/g, ' ').toUpperCase();
+  const usuario = $('login-usuario').value.trim().replace(/\s+/g, '').toLowerCase();
   const clave = $('login-clave').value;
   if (!usuario || !clave) { $('login-msg').textContent = 'Ingresá usuario y contraseña'; return; }
   $('login-msg').textContent = '';
