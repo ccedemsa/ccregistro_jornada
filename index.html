@@ -292,7 +292,7 @@
   .btn-sm { padding: 10px 16px; font-size: 13px; border-radius: 8px; }
 
   /* ─── TEXTAREA ─── */
-  textarea, input[type="text"], input[type="email"] {
+  textarea, input[type="text"], input[type="email"], input[type="password"] {
     width: 100%;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -305,7 +305,7 @@
     outline: none;
     transition: border-color .2s;
   }
-  textarea:focus, input[type="text"]:focus, input[type="email"]:focus {
+  textarea:focus, input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus {
     border-color: var(--accent3);
   }
   textarea::placeholder, input::placeholder { color: var(--muted); }
@@ -500,14 +500,28 @@
     <div>
       <div class="onboarding-title">Registro de<br><span>Jornada</span></div>
     </div>
-    <div class="onboarding-sub">Primera vez que usás la app.<br>Ingresá tu nombre para identificarte.</div>
+    <div class="onboarding-sub" id="ob-sub">Ingresá tu nombre para identificarte.</div>
     <div style="width:100%; display:flex; flex-direction:column; gap:12px;">
       <div class="form-group">
         <label class="form-label">Tu nombre completo</label>
         <input type="text" id="input-nombre" placeholder="Ej: JUAN GARCÍA" maxlength="60" autocapitalize="characters" style="text-transform:uppercase;">
       </div>
+      <div class="form-group" id="ob-bloque-clave" style="display:none;">
+        <label class="form-label" id="ob-label-clave">Tu clave</label>
+        <input type="password" id="input-clave" autocomplete="current-password">
+      </div>
+      <div id="ob-bloque-nueva" style="display:none; flex-direction:column; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Clave nueva (mínimo 6 caracteres)</label>
+          <input type="password" id="input-clave-nueva" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Repetir clave nueva</label>
+          <input type="password" id="input-clave-repetir" autocomplete="new-password">
+        </div>
+      </div>
       <button class="btn btn-primary" id="btn-guardar-config">
-        Comenzar →
+        Continuar →
       </button>
     </div>
   </div>
@@ -772,6 +786,7 @@ function init() {
   }
 
   if (!STATE.usuario || !STATE.userId) {
+    if (STATE.usuario) document.getElementById('input-nombre').value = STATE.usuario;
     mostrarScreen('onboarding');
   } else {
     mostrarScreen('main');
@@ -815,49 +830,122 @@ function switchTab(tab) {
 // ═══════════════════════════════════════════
 //  ONBOARDING
 // ═══════════════════════════════════════════
+// Pasos: 'nombre' -> (equipo no habilitado) 'clave' -> (clave inicial) 'nueva' -> listo
+let OB_PASO = 'nombre';
+
+function descripcionEquipo() {
+  const ua = navigator.userAgent || '';
+  const so = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' :
+             /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : 'Equipo';
+  const nav = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox/i.test(ua) ? 'Firefox' :
+              /Chrome|CriOS/i.test(ua) ? 'Chrome' : /Safari/i.test(ua) ? 'Safari' : 'Navegador';
+  return so + ' · ' + nav;
+}
+
+function obMostrarPaso(paso) {
+  OB_PASO = paso;
+  document.getElementById('ob-bloque-clave').style.display = paso === 'nombre' ? 'none' : '';
+  document.getElementById('ob-bloque-nueva').style.display = paso === 'nueva' ? 'flex' : 'none';
+  const sub = document.getElementById('ob-sub');
+  if (paso === 'nombre') {
+    sub.textContent = 'Ingresá tu nombre para identificarte.';
+  } else if (paso === 'clave') {
+    sub.innerHTML = 'Este equipo todavía no está habilitado.<br>Ingresá tu clave. Si es tu primer ingreso, es <b>123456</b>.';
+    document.getElementById('input-clave').focus();
+  } else {
+    sub.innerHTML = 'Primer ingreso: elegí tu clave personal.<br>La vas a necesitar al usar un celular nuevo.';
+    document.getElementById('input-clave-nueva').focus();
+  }
+}
+
+// Si cambian el nombre, se vuelve al primer paso
+document.getElementById('input-nombre').addEventListener('input', () => {
+  if (OB_PASO !== 'nombre') {
+    document.getElementById('input-clave').value = '';
+    document.getElementById('input-clave-nueva').value = '';
+    document.getElementById('input-clave-repetir').value = '';
+    obMostrarPaso('nombre');
+  }
+});
+
+// Un equipo habilitado deja de serlo (baja del empleado, o se habilitaron 2 equipos más nuevos)
+function sesionInvalida() {
+  localStorage.removeItem('rj_user_id');
+  localStorage.removeItem('rj_jornada_activa');
+  STATE.userId = null;
+  STATE.jornadaActiva = null;
+  document.getElementById('input-nombre').value = STATE.usuario || '';
+  ['input-clave', 'input-clave-nueva', 'input-clave-repetir'].forEach(i => document.getElementById(i).value = '');
+  obMostrarPaso('nombre');
+  mostrarScreen('onboarding');
+  toast('Este equipo ya no está habilitado. Volvé a ingresar.', 'error');
+}
+
 document.getElementById('btn-guardar-config').addEventListener('click', async () => {
   const nombre = document.getElementById('input-nombre').value.trim().replace(/\s+/g, ' ').toUpperCase();
   if (!nombre) { toast('Ingresá tu nombre', 'error'); return; }
-  
+
+  const payload = { accion: 'empleado_ingresar', usuario: nombre, descripcion: descripcionEquipo() };
+  const tokenGuardado = localStorage.getItem('rj_user_id');
+  if (tokenGuardado && localStorage.getItem('rj_usuario') === nombre) payload.token = tokenGuardado;
+
+  if (OB_PASO !== 'nombre') {
+    const clave = document.getElementById('input-clave').value;
+    if (!clave) { toast('Ingresá tu clave', 'error'); return; }
+    payload.clave = clave;
+  }
+  if (OB_PASO === 'nueva') {
+    const nueva = document.getElementById('input-clave-nueva').value;
+    const rep = document.getElementById('input-clave-repetir').value;
+    if (nueva.length < 6) { toast('La clave nueva debe tener al menos 6 caracteres', 'error'); return; }
+    if (nueva !== rep) { toast('Las claves nuevas no coinciden', 'error'); return; }
+    payload.claveNueva = nueva;
+  }
+
   const btn = document.getElementById('btn-guardar-config');
+  const textoBtn = 'Continuar →';
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Validando...';
-  
+
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 30000);
   try {
     const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       mode: 'cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ accion: 'validar_usuario', usuario: nombre })
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
     });
-    
     const data = await resp.json();
-    
+
     if (data.error) {
       toast(data.error, 'error');
-      btn.disabled = false;
-      btn.innerHTML = 'Comenzar →';
-      return;
-    }
-    
-    if (data.ok && data.userId) {
+      if (OB_PASO !== 'nombre') document.getElementById('input-clave').value = '';
+    } else if (data.estado === 'PIDE_CLAVE') {
+      obMostrarPaso('clave');
+    } else if (data.estado === 'DEBE_CAMBIAR') {
+      obMostrarPaso('nueva');
+    } else if (data.estado === 'OK' && data.token) {
       localStorage.setItem('rj_usuario', nombre);
-      localStorage.setItem('rj_user_id', data.userId);
+      localStorage.setItem('rj_user_id', data.token);
       STATE.usuario = nombre;
-      STATE.userId = data.userId;
+      STATE.userId = data.token;
+      ['input-clave', 'input-clave-nueva', 'input-clave-repetir'].forEach(i => document.getElementById(i).value = '');
+      obMostrarPaso('nombre');
       mostrarScreen('main');
       actualizarUIJornada();
       pedirUbicacion();
       sincronizarEstado();
     } else {
       toast('Error en la validación', 'error');
-      btn.disabled = false;
-      btn.innerHTML = 'Comenzar →';
     }
   } catch(e) {
-    toast('Error de conexión con el servidor', 'error');
+    toast(e.name === 'AbortError' ? 'El servidor tardó demasiado. Probá de nuevo.' : 'Error de conexión con el servidor', 'error');
+  } finally {
+    clearTimeout(to);
     btn.disabled = false;
-    btn.innerHTML = 'Comenzar →';
+    btn.innerHTML = textoBtn;
   }
 });
 
@@ -1308,6 +1396,7 @@ async function cargarHistorial() {
     const resp = await fetch(url, { method: 'GET', mode: 'cors' });
     const data = await resp.json();
     
+    if (data.codigo === 'NO_AUTORIZADO') { cont.innerHTML = ''; sesionInvalida(); return; }
     if (data.registros && data.registros.length > 0) {
       // Filtrar solo mes actual y anterior
       const now = new Date();
@@ -1489,6 +1578,7 @@ async function sincronizarEstado(opts) {
     const url = `${STATE.sheetUrl}?accion=estado_jornada&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
     const resp = await fetch(url, { method: 'GET', mode: 'cors', signal: ctrl.signal });
     const data = await resp.json();
+    if (data.codigo === 'NO_AUTORIZADO') { sesionInvalida(); return false; }
     if (data.error || data.ok !== true) throw new Error(data.error || 'Respuesta inválida');
 
     // Si el estado local cambió mientras esperábamos (ej. el usuario inició una jornada), no se pisa
@@ -1545,6 +1635,7 @@ async function enviarASheet(payload) {
       body: JSON.stringify(payload)
     });
     const data = await resp.json();
+    if (data.codigo === 'NO_AUTORIZADO') { sesionInvalida(); return false; }
     if (data.error) {
       toast(data.error, 'error');
       // Si el rechazo es por un estado desfasado, se vuelve a sincronizar con el Sheet
