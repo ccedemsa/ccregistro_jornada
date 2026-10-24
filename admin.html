@@ -762,6 +762,7 @@ $('reg-usuario').addEventListener('change', cargarRegistros);
 
 // ─── editar jornada (gestor) ───
 let ED_ID = null;
+const FIN_SUGERIDO = '15:00';        // hora de fin que se precarga al completar una jornada sin cerrar
 function mascaraFecha(el) {
   el.addEventListener('input', () => {
     const n = el.value.replace(/\D/g, '').substring(0, 8);
@@ -802,7 +803,11 @@ $('reg-lista').addEventListener('click', ev => {
   $('ed-det').textContent = r.usuario + (r.abierta ? ' · jornada sin cerrar' : ' · jornada cerrada') + '. Los cambios quedan auditados.';
   $('ed-ini-f').value = pi.f; $('ed-ini-h').value = pi.h;
   $('ed-fin-f').value = pf.f; $('ed-fin-h').value = pf.h;
-  $('ed-fin-rot').textContent = r.abierta ? 'Fin (completalo para cerrar la jornada)' : 'Fin';
+  if (r.abierta) {                                   // jornada sin cerrar: se sugiere el mismo día a las 15:00 (el caso más común)
+    const sug = new Date(r.inicio.substring(0, 10) + 'T' + FIN_SUGERIDO + ':00');
+    if (!isNaN(sug) && sug > new Date(r.inicio.replace(' ', 'T')) && sug <= new Date()) { $('ed-fin-f').value = pi.f; $('ed-fin-h').value = FIN_SUGERIDO; }
+  }
+  $('ed-fin-rot').textContent = r.abierta ? 'Fin (sugerido: ' + FIN_SUGERIDO + ', corregilo si hace falta)' : 'Fin';
   $('ed-motivo').value = ''; $('ed-msg').textContent = '';
   $('modal-editar').classList.remove('hidden');
   setTimeout(() => $(r.abierta ? 'ed-fin-f' : 'ed-ini-f').focus(), 50);
