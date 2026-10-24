@@ -156,6 +156,18 @@
   .btn-icono.activo:hover { color:var(--text); border-color:var(--text); }
   .btn-icono:disabled { opacity:.6; cursor:not-allowed; }
   .btn-icono .spinner { width:12px; height:12px; border-color:var(--border); border-top-color:var(--accent); }
+  table.tabla s.nc { color:var(--muted); opacity:.85; }
+  table.tabla .dif { color:#ff6b7a; white-space:nowrap; }
+  table.tabla .dif s { opacity:.75; }
+  table.tabla tr.cambio td { background:rgba(255,71,87,.10); }
+  .badge.cambio { color:#ff6b7a; border-color:rgba(255,71,87,.5); }
+  .chip.danger { border-color:rgba(255,71,87,.5); color:#ff6b7a; }
+  .chip.danger b { color:#ff6b7a; }
+  .aut-cel { display:inline-flex; align-items:center; gap:6px; }
+  .aut-cel input[type="checkbox"] { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; }
+  table.tabla .aut-cel input.aut-min { width:64px; padding:3px 6px; font-size:12.5px; text-align:center; border-radius:6px; }
+  table.tabla .aut-cel input.aut-min:disabled { opacity:.45; }
+  table.tabla .aut-cel input.aut-min.error { border-color:var(--danger); }
   .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
 
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
@@ -250,7 +262,7 @@
       <div class="sec-head">
         <div>
           <h3>Informe de horas <span class="badge warn">PRELIMINAR</span></h3>
-          <p class="sub">Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Todavía no incluye autorizaciones.</p>
+          <p class="sub">Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Solo cuentan las extras y los faltantes que autorices con Editar.</p>
         </div>
       </div>
       <form class="filtros" id="form-inf" autocomplete="off">
@@ -477,7 +489,7 @@ function cerrarLocal() {
   borrarToken();
   VISTA_ACTUAL = null;
   USUARIOS = [];
-  REG_INICIADO = false; INF_INICIADO = false;
+  REG_INICIADO = false; INF_INICIADO = false; INF_EDIT = false; INF_DATA = null; INF_SOLO_CAMBIOS = false;
   $('reg-lista').innerHTML = ''; $('inf-lista').innerHTML = '';
   PAR_DIRTY = false; PAR_REGLAS = []; FER_LISTA = [];
   SESION = { token: null, nombre: '', debeCambiar: false };
@@ -668,7 +680,7 @@ function renderRegistros(regs, truncado) {
 
   // una sola tabla: un registro por fila (ya vienen del más nuevo al más viejo)
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
-  const tb = document.createElement('table'); tb.className = 'tabla reg fija';
+  const tb = document.createElement('table'); tb.className = 'tabla reg fija compacta';
   tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th><th></th></tr></thead>';
   const body = document.createElement('tbody');
   let diaPrevio = null;
@@ -857,7 +869,60 @@ let INF_FILTRO_USUARIO = '';
 // empleado tachado (ícono del botón de ausencia)
 const ICONO_AUSENTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
 
+let INF_DATA = null;
+let INF_EDIT = false;
+let INF_SOLO_CAMBIOS = false;
+
+function parseMin(t) {                         // 'H:MM' -> minutos (NaN si no es válido)
+  const m = /^(\d{1,3}):([0-5]\d)$/.exec(String(t || '').trim());
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : NaN;
+}
+function fmtMinInput(min) { return Math.floor(min / 60) + ':' + String(min % 60).padStart(2, '0'); }
+function tachado(min) { const x = document.createElement('s'); x.className = 'nc'; x.textContent = fmtHM(min); return x; }
+function difCelda(viejo, nuevo) {              // "2:00 → 3:00" resaltado
+  const sp = document.createElement('span'); sp.className = 'dif';
+  const x = document.createElement('s'); x.textContent = fmtHM(viejo);
+  const b = document.createElement('b'); b.textContent = fmtHM(nuevo);
+  sp.appendChild(x); sp.appendChild(document.createTextNode(' → ')); sp.appendChild(b);
+  return sp;
+}
+
+// Contenido de las columnas 50%, 100% y Faltante cuando no se está editando
+function contenidoAut(td, d, campo) {
+  const raw = d.calc[campo];
+  if (d.estado === 'cambio') {
+    const snap = d.snap[campo];
+    if (snap !== raw) td.appendChild(difCelda(snap, raw));
+    else if (raw > 0 && campo !== 'faltante') td.appendChild(tachado(raw));
+    else td.textContent = fmtHM(raw);
+    return;
+  }
+  if (campo === 'faltante') { td.textContent = fmtHM(d.faltante); return; }      // lo que sigue sin cubrir
+  const contado = d[campo];
+  if (contado > 0) {
+    td.textContent = fmtHM(contado);
+    if (raw > contado) { td.appendChild(document.createTextNode(' ')); td.appendChild(tachado(raw)); }
+  } else if (raw > 0) td.appendChild(tachado(raw));                              // calculado y sin autorizar
+  else td.textContent = '—';
+}
+
+// Controles de edición: tilde + cantidad
+function controlAut(td, d, campo) {
+  const raw = d.calc[campo];
+  const ok = d.estado === 'ok' && d.aut && d.aut[campo] > 0;
+  const ini = ok ? d.aut[campo] : raw;
+  const w = document.createElement('span'); w.className = 'aut-cel';
+  const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = ok;
+  chk.dataset.campo = campo; chk.dataset.iniChk = ok ? '1' : '0';
+  chk.title = campo === 'faltante' ? 'Autorizar faltante (se suma a las horas normales)' : 'Autorizar extra';
+  const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'aut-min'; inp.maxLength = 6; inp.autocomplete = 'off';
+  inp.value = fmtMinInput(ini); inp.dataset.campo = campo; inp.dataset.iniMin = String(ini); inp.dataset.raw = String(raw); inp.disabled = !ok;
+  chk.addEventListener('change', () => { inp.disabled = !chk.checked; });
+  w.appendChild(chk); w.appendChild(inp); td.appendChild(w);
+}
+
 function renderInforme(r) {
+  INF_DATA = r;
   const cont = $('inf-lista');
   cont.innerHTML = '';
   const chips = $('inf-resumen');
@@ -868,6 +933,7 @@ function renderInforme(r) {
   chip('Horas mínimas: <b>' + String(r.horasMinimas).replace('.', ',') + '</b>');
   chip('Días con jornada: <b>' + conJornada + '</b>');
   if (nAusentes) chip('Ausentes: <b>' + nAusentes + '</b>');
+  if (r.cambios) chip('Cambios por revisar: <b>' + r.cambios + '</b>', 'danger');
   if (r.abiertas.length) chip('Sin cerrar (no se calculan): <b>' + r.abiertas.length + '</b>', 'warn');
   if (r.anomalas.length) chip('Inconsistentes: <b>' + r.anomalas.length + '</b>', 'warn');
   chips.classList.remove('hidden');
@@ -882,7 +948,7 @@ function renderInforme(r) {
   const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
   const t1 = document.createElement('table'); t1.className = 'tabla';
-  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante (informativo)</th></tr></thead>';
+  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
   const b1 = document.createElement('tbody');
   r.totales.forEach(t => {
     const tr = document.createElement('tr');
@@ -892,21 +958,40 @@ function renderInforme(r) {
   });
   t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
 
-  // detalle: una fila por empleado y por día del mes
-  const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:24px 0 10px;'; h5.textContent = 'Detalle por día'; cont.appendChild(h5);
+  // encabezado del detalle con los botones de edición
+  const cab = document.createElement('div'); cab.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:24px 0 10px;';
+  const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:0;'; h5.textContent = 'Detalle por día';
+  cab.appendChild(h5);
+  const acc = document.createElement('div'); acc.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  const boton = (id, texto, clase) => { const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'btn btn-sm ' + (clase || ''); b.textContent = texto; acc.appendChild(b); return b; };
+  if (INF_EDIT) {
+    const t = document.createElement('span'); t.className = 'sub'; t.style.cssText = 'margin:0;';
+    t.textContent = 'Modo edición: tildá lo que autorizás y ajustá la cantidad. Guardar recalcula los totales.';
+    acc.appendChild(t);
+    boton('inf-guardar', 'Guardar', '');
+    boton('inf-cancelar', 'Cancelar', 'btn-sec');
+  } else {
+    if (r.cambios) boton('inf-solo-cambios', INF_SOLO_CAMBIOS ? 'Ver todo' : 'Ver solo cambios (' + r.cambios + ')', 'btn-sec');
+    boton('inf-editar', 'Editar', 'btn-sec');
+  }
+  cab.appendChild(acc); cont.appendChild(cab);
+
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
   tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Ausencia</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
-  r.filas.forEach(d => {
+  const filas = INF_SOLO_CAMBIOS && !INF_EDIT ? r.filas.filter(d => d.estado === 'cambio') : r.filas;
+  filas.forEach(d => {
     const tr = document.createElement('tr');
+    tr.dataset.clave = d.usuario + '|' + d.fecha;
     const clases = [];
     if (previo !== null && previo !== d.fecha) clases.push('nuevo-dia');
     previo = d.fecha;
     if (d.pend.length) clases.push('abierta');
     if (d.ausente) clases.push('ausente');
     else if (!d.tieneRegistro) clases.push('sin-reg');
+    if (d.estado === 'cambio') clases.push('cambio');
     tr.className = clases.join(' ');
 
     celda(tr, fmtDiaCorto(d.fecha), 'num');
@@ -918,34 +1003,105 @@ function renderInforme(r) {
     d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
     if (d.editado) { tdT.appendChild(document.createTextNode(' ')); const be = badge('Editado', 'aus'); be.title = 'Alguna jornada de este día fue editada por el gestor (ver Registros diarios)'; tdT.appendChild(be); }
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
+    if (d.estado === 'cambio') {
+      const bc = badge('Cambió', 'cambio');
+      const lin = (o) => '50%: ' + fmtHM(o.c50) + ', 100%: ' + fmtHM(o.c100) + ', faltante: ' + fmtHM(o.faltante);
+      bc.title = 'Autorizado el ' + d.aut.cuando + ' por ' + d.aut.gestor + ' (' + lin(d.aut) + ').\nCuando se autorizó el sistema calculaba: ' + lin(d.snap) + '.\nAhora calcula: ' + lin(d.calc) + '.\nNo cuenta hasta que lo confirmes de nuevo.';
+      tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(bc);
+    }
     tr.appendChild(tdT);
 
     const lapsos = d.lapsos.concat(d.pend.map(pd => pd.lapso)).join(' / ');
     celda(tr, lapsos || (d.fueraDeMes ? '' : 'Sin registro'), d.tieneRegistro ? 'num' : 'det');
 
-    const campos = ['total', 'normal', 'c50', 'c100', 'faltante'];
-    campos.forEach(c => {
+    // total y normal (lo que cuenta)
+    ['total', 'normal'].forEach(c => {
       const td = document.createElement('td'); td.className = 'num';
-      if (d.ausente && d.orig && d.orig[c]) { const x = document.createElement('s'); x.textContent = fmtHM(d.orig[c]); td.appendChild(x); }
-      else td.textContent = fmtHM(d[c]);
+      if (d.ausente && d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = fmtHM(d[c]);
+      tr.appendChild(td);
+    });
+    // 50%, 100% y faltante
+    ['c50', 'c100', 'faltante'].forEach(c => {
+      const td = document.createElement('td'); td.className = 'num';
+      if (d.ausente) { if (d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = '—'; }
+      else if (INF_EDIT && d.calc[c] > 0) controlAut(td, d, c);
+      else contenidoAut(td, d, c);
       tr.appendChild(td);
     });
 
     const tdA = document.createElement('td'); tdA.className = 'acc';
-    if (d.ausente) {
-      const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn-icono activo';
-      bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
-      bq.title = 'Quitar ausente (' + d.ausente.motivo + ')'; bq.setAttribute('aria-label', 'Quitar ausente'); bq.innerHTML = ICONO_AUSENTE; tdA.appendChild(bq);
-    } else if (!d.futuro && !d.fueraDeMes) {
-      const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
-      bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
-      bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
+    if (!INF_EDIT) {
+      if (d.ausente) {
+        const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn-icono activo';
+        bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
+        bq.title = 'Quitar ausente (' + d.ausente.motivo + ')'; bq.setAttribute('aria-label', 'Quitar ausente'); bq.innerHTML = ICONO_AUSENTE; tdA.appendChild(bq);
+      } else if (!d.futuro && !d.fueraDeMes) {
+        const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
+        bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
+        bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
+      }
     }
     tr.appendChild(tdA);
     body.appendChild(tr);
   });
+  if (!filas.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 10; td.className = 'det'; td.style.textAlign = 'center';
+    td.textContent = 'No hay filas con cambios por revisar.'; tr.appendChild(td); body.appendChild(tr);
+  }
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
 }
+
+function filtrosInformeHabilitados(on) {
+  ['inf-usuario', 'inf-mes', 'btn-inf-actualizar'].forEach(i => { $(i).disabled = !on; });
+}
+
+function repintarInforme() { const y = window.scrollY; renderInforme(INF_DATA); window.scrollTo(0, y); }
+
+// Botones del encabezado del detalle: editar / guardar / cancelar / solo cambios
+$('inf-lista').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[id^="inf-"]');
+  if (!b) return;
+  if (b.id === 'inf-editar') { INF_EDIT = true; filtrosInformeHabilitados(false); repintarInforme(); return; }
+  if (b.id === 'inf-cancelar') { INF_EDIT = false; filtrosInformeHabilitados(true); repintarInforme(); return; }
+  if (b.id === 'inf-solo-cambios') { INF_SOLO_CAMBIOS = !INF_SOLO_CAMBIOS; repintarInforme(); return; }
+  if (b.id === 'inf-guardar') {
+    // reunir las filas modificadas (y las que cambiaron de cálculo: se confirman o se dejan sin autorizar)
+    const items = [];
+    let sinConfirmar = 0, hayError = false;
+    $('inf-lista').querySelectorAll('input.aut-min').forEach(i => i.classList.remove('error'));
+    INF_DATA.filas.forEach(d => {
+      if (d.ausente) return;
+      const tr = $('inf-lista').querySelector('tr[data-clave="' + CSS.escape(d.usuario + '|' + d.fecha) + '"]');
+      if (!tr) return;
+      const item = { usuario: d.usuario, fecha: d.fecha, c50: 0, c100: 0, faltante: 0 };
+      let cambio = d.estado === 'cambio';
+      tr.querySelectorAll('.aut-cel').forEach(w => {
+        const chk = w.querySelector('input[type="checkbox"]'), inp = w.querySelector('input.aut-min');
+        const campo = chk.dataset.campo;
+        let val = 0;
+        if (chk.checked) {
+          val = parseMin(inp.value);
+          if (isNaN(val) || val <= 0 || val > parseInt(inp.dataset.raw, 10)) { inp.classList.add('error'); hayError = true; return; }
+        }
+        item[campo] = val;
+        if ((chk.checked ? '1' : '0') !== chk.dataset.iniChk || (chk.checked && String(val) !== inp.dataset.iniMin)) cambio = true;
+      });
+      if (!cambio) return;
+      if (d.estado === 'cambio' && item.c50 + item.c100 + item.faltante === 0) sinConfirmar++;
+      items.push(item);
+    });
+    if (hayError) { toast('Revisá las cantidades marcadas en rojo: tienen que ser H:MM y no superar lo calculado', 'error'); return; }
+    if (!items.length) { toast('No hay cambios para guardar', 'error'); return; }
+    if (sinConfirmar && !confirm(sinConfirmar + ' fila(s) con cambios en el cálculo quedan sin autorizar porque no las tildaste. ¿Guardar igual?')) return;
+    await conSpinner(b, 'Guardando...', async () => {
+      const r = await llamarGestor('gestor_autorizaciones_guardar', { mes: INF_DATA.mes, items, filtroUsuario: $('inf-usuario').value });
+      if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+      INF_EDIT = false; filtrosInformeHabilitados(true);
+      mostrarInformeActualizado(r);
+      toast('Autorizaciones guardadas');
+    });
+  }
+});
 
 // ─── ausencias (marcar / quitar) ───
 let AUS_CTX = null;
@@ -1007,6 +1163,7 @@ async function cargarInforme() {
   $('inf-lista').innerHTML = '';
   $('inf-resumen').classList.add('hidden');
   try {
+    INF_EDIT = false;
     const r = await llamarGestor('gestor_informe', { mes: $('inf-mes').value, usuario: $('inf-usuario').value });
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     const sel = $('inf-usuario'), actual = sel.value;
