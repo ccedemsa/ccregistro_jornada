@@ -1301,7 +1301,7 @@ async function cargarHistorial() {
   _historialCargando = true;
   const cont = document.getElementById('historial-list');
   const btn = document.getElementById('btn-actualizar-historial');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Actualizando...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Actualizando...'; }
   cont.innerHTML = '<div class="empty-state"><div class="icon"><div class="spinner spinner-lg"></div></div><div>Cargando...</div></div>';
   try {
     const url = `${STATE.sheetUrl}?accion=historial&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
