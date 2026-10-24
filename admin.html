@@ -71,6 +71,32 @@
   .vacio b { display:block; color:var(--text); font-family:var(--font-display); font-size:18px; margin-bottom:8px; }
   .cargando { display:flex; justify-content:center; padding:40px; }
 
+  .filtros { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+  .filtros .campo { min-width:150px; }
+  .filtros label { margin-top:0; }
+  .filtros select, .filtros input[type="date"] { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--font-mono); font-size:14px; outline:none; color-scheme:dark; }
+  .filtros select:focus, .filtros input[type="date"]:focus { border-color:var(--accent); }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .chip { font-family:var(--font-mono); font-size:12px; padding:6px 12px; border-radius:999px; background:var(--surface); border:1px solid var(--border); color:var(--muted); }
+  .chip b { color:var(--text); }
+  .chip.warn { border-color:rgba(255,165,2,.5); color:var(--warn); }
+  .chip.warn b { color:var(--warn); }
+  .dia { margin-bottom:16px; }
+  .dia h4 { font-size:14px; font-weight:800; color:var(--accent); margin:0 0 6px 2px; }
+  .scroll-x { overflow-x:auto; }
+  table.tabla.reg { table-layout:fixed; min-width:820px; }
+  table.tabla.reg th:nth-child(1) { width:21%; } table.tabla.reg th:nth-child(2) { width:10%; }
+  table.tabla.reg th:nth-child(3) { width:8%; }  table.tabla.reg th:nth-child(4) { width:17%; }
+  table.tabla.reg th:nth-child(5) { width:10%; } table.tabla.reg th:nth-child(6) { width:22%; }
+  table.tabla.reg th:nth-child(7) { width:12%; }
+  table.tabla td.det { color:var(--muted); font-family:var(--font-mono); font-size:12px; max-width:340px; }
+  table.tabla td.num { font-family:var(--font-mono); white-space:nowrap; }
+  table.tabla tr.abierta td { background:rgba(255,165,2,.06); }
+  .badge.warn { color:var(--warn); border-color:rgba(255,165,2,.5); }
+  .badge.nov { color:#4a9eff; border-color:rgba(74,158,255,.4); }
+  .badge.jor { color:var(--accent); border-color:rgba(0,229,160,.4); }
+  .mapa { color:var(--accent); font-family:var(--font-mono); font-size:12px; text-decoration:none; }
+  .mapa:hover { text-decoration:underline; }
   .alta-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:18px; }
   .alta-form .campo { flex:1; min-width:220px; }
   .alta-form label { margin-top:0; }
@@ -154,7 +180,30 @@
   <div class="main">
     <!-- vistas principales -->
     <div id="sec-registros" class="hidden">
-      <div class="vacio"><b>Registros diarios</b>Próximamente: las jornadas y novedades que cargó cada empleado, día por día.</div>
+      <div class="sec-head">
+        <div>
+          <h3>Registros diarios</h3>
+          <p class="sub">Jornadas y novedades que cargó cada empleado, día por día.</p>
+        </div>
+      </div>
+      <form class="filtros" id="form-reg" autocomplete="off">
+        <div class="campo">
+          <label for="reg-usuario">Empleado</label>
+          <select id="reg-usuario"><option value="">Todos</option></select>
+        </div>
+        <div class="campo">
+          <label for="reg-desde">Desde</label>
+          <input type="date" id="reg-desde">
+        </div>
+        <div class="campo">
+          <label for="reg-hasta">Hasta</label>
+          <input type="date" id="reg-hasta">
+        </div>
+        <button type="submit" class="btn btn-sec btn-sm" id="btn-reg-actualizar">&#8635; Actualizar</button>
+      </form>
+      <div class="chips hidden" id="reg-resumen"></div>
+      <div class="cargando hidden" id="reg-cargando"><div class="spinner spinner-lg"></div></div>
+      <div id="reg-lista"></div>
     </div>
     <div id="sec-informe" class="hidden">
       <div class="vacio"><b>Informe</b>Próximamente: horas por tipo, con edición masiva y autorización de extras y faltantes.</div>
@@ -272,6 +321,8 @@ function cerrarLocal() {
   borrarToken();
   VISTA_ACTUAL = null;
   USUARIOS = [];
+  REG_INICIADO = false;
+  $('reg-lista').innerHTML = '';
   SESION = { token: null, nombre: '', debeCambiar: false };
   $('login-clave').value = '';
   $('login-msg').textContent = '';
@@ -336,6 +387,7 @@ function irA(vista) {
   $('btn-engranaje').classList.toggle('active', VISTAS_TAB.indexOf(vista) < 0);
   cerrarMenu();
   if (vista === 'usuarios') cargarUsuarios();
+  if (vista === 'registros') iniciarRegistros();
 }
 
 function cerrarMenu() { $('menu-config').classList.add('hidden'); }
@@ -354,6 +406,164 @@ async function llamarGestor(accion, extra) {
   const r = await llamar(Object.assign({ accion, token: SESION.token }, extra || {}));
   if (r.error && /Sesión vencida/.test(r.error)) { cerrarLocal(); toast('La sesión venció. Ingresá de nuevo.', 'error'); }
   return r;
+}
+
+// ─── registros diarios ───
+let REG_CARGANDO = false;
+let REG_INICIADO = false;
+
+function hoyISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function primeroDelMesISO() { return hoyISO().substring(0, 8) + '01'; }
+
+function fmtDiaISO(iso) {            // '2026-10-24' -> 'Sábado 24/10/2026'
+  const [a, m, d] = iso.split('-').map(Number);
+  const f = new Date(a, m - 1, d);
+  const dia = f.toLocaleDateString('es-AR', { weekday: 'long' });
+  return dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + a;
+}
+function hhmm(ts) { return ts ? ts.substring(11, 16) : ''; }
+function fmtDur(min) {
+  if (min === null || min === undefined) return '';
+  return Math.floor(min / 60) + 'h ' + String(min % 60).padStart(2, '0') + 'm';
+}
+
+function celda(tr, texto, clase) {
+  const td = document.createElement('td');
+  if (clase) td.className = clase;
+  td.textContent = texto;
+  tr.appendChild(td);
+  return td;
+}
+function badge(texto, clase) {
+  const b = document.createElement('span');
+  b.className = 'badge ' + clase;
+  b.textContent = texto;
+  return b;
+}
+function celdaUbicacion(tr, ubic) {
+  const td = document.createElement('td');
+  if (/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(ubic || '')) {
+    const a = document.createElement('a');
+    a.className = 'mapa'; a.target = '_blank'; a.rel = 'noopener';
+    a.href = 'https://www.google.com/maps?q=' + encodeURIComponent(ubic.replace(/\s+/g, ''));
+    a.textContent = 'Ver mapa';
+    td.appendChild(a);
+  } else {
+    td.className = 'det'; td.textContent = ubic || '—';
+  }
+  tr.appendChild(td);
+}
+
+function renderRegistros(regs, truncado) {
+  const cont = $('reg-lista');
+  cont.innerHTML = '';
+  const jor = regs.filter(r => r.tipo === 'JORNADA').length;
+  const nov = regs.length - jor;
+  const abiertas = regs.filter(r => r.abierta).length;
+
+  const chips = $('reg-resumen');
+  chips.innerHTML = '';
+  const chip = (html, clase) => { const c = document.createElement('span'); c.className = 'chip ' + (clase || ''); c.innerHTML = html; chips.appendChild(c); };
+  chip('Jornadas: <b>' + jor + '</b>');
+  chip('Novedades: <b>' + nov + '</b>');
+  chip('Sin cerrar: <b>' + abiertas + '</b>', abiertas ? 'warn' : '');
+  if (truncado) chip('Se muestran solo los primeros 1000 registros. Acotá el período.', 'warn');
+  chips.classList.remove('hidden');
+
+  if (!regs.length) {
+    const v = document.createElement('div');
+    v.className = 'vacio'; v.textContent = 'No hay registros en el período seleccionado.';
+    cont.appendChild(v);
+    return;
+  }
+
+  // agrupar por día de inicio (ya vienen ordenados del más nuevo al más viejo)
+  const grupos = [];
+  regs.forEach(r => {
+    const dia = r.inicio.substring(0, 10);
+    let g = grupos[grupos.length - 1];
+    if (!g || g.dia !== dia) { g = { dia: dia, items: [] }; grupos.push(g); }
+    g.items.push(r);
+  });
+
+  grupos.forEach(g => {
+    const wrap = document.createElement('div'); wrap.className = 'dia';
+    const h = document.createElement('h4'); h.textContent = fmtDiaISO(g.dia); wrap.appendChild(h);
+    const sx = document.createElement('div'); sx.className = 'scroll-x';
+    const tb = document.createElement('table'); tb.className = 'tabla reg';
+    tb.innerHTML = '<thead><tr><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th></tr></thead>';
+    const body = document.createElement('tbody');
+    g.items.forEach(r => {
+      const tr = document.createElement('tr');
+      if (r.abierta) tr.className = 'abierta';
+      celda(tr, r.usuario, 'nombre');
+      const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov')); tr.appendChild(tdT);
+      if (r.tipo === 'JORNADA') {
+        celda(tr, hhmm(r.inicio), 'num');
+        const tdF = document.createElement('td'); tdF.className = 'num';
+        if (r.abierta) tdF.appendChild(badge('Sin cerrar', 'warn'));
+        else {
+          tdF.appendChild(document.createTextNode(hhmm(r.fin)));
+          if (r.cruzaDia) { tdF.appendChild(document.createTextNode(' ')); tdF.appendChild(badge('día siguiente', 'warn')); }
+        }
+        tr.appendChild(tdF);
+        celda(tr, r.abierta ? '—' : fmtDur(r.minutos), 'num');
+        celda(tr, r.observaciones || '', 'det');
+        celdaUbicacion(tr, r.ubicacionInicio);
+      } else {
+        celda(tr, '—', 'num'); celda(tr, '—', 'num'); celda(tr, '—', 'num');
+        celda(tr, r.descripcion || '', 'det');
+        celdaUbicacion(tr, r.ubicacionInicio);
+      }
+      body.appendChild(tr);
+    });
+    tb.appendChild(body); sx.appendChild(tb); wrap.appendChild(sx); cont.appendChild(wrap);
+  });
+}
+
+function llenarEmpleados(lista) {
+  const sel = $('reg-usuario');
+  const actual = sel.value;
+  sel.innerHTML = '';
+  const t = document.createElement('option'); t.value = ''; t.textContent = 'Todos'; sel.appendChild(t);
+  (lista || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+  sel.value = (lista || []).indexOf(actual) >= 0 ? actual : '';
+}
+
+async function cargarRegistros() {
+  if (REG_CARGANDO) return;
+  const desde = $('reg-desde').value, hasta = $('reg-hasta').value;
+  if (!desde || !hasta) { toast('Elegí las fechas desde y hasta', 'error'); return; }
+  if (desde > hasta) { toast('La fecha desde no puede ser posterior a la fecha hasta', 'error'); return; }
+  REG_CARGANDO = true;
+  const btn = $('btn-reg-actualizar');
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Actualizando...';
+  $('reg-cargando').classList.remove('hidden');
+  $('reg-lista').innerHTML = '';
+  $('reg-resumen').classList.add('hidden');
+  try {
+    const r = await llamarGestor('gestor_registros', { desde, hasta, usuario: $('reg-usuario').value });
+    if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+    llenarEmpleados(r.empleados);
+    renderRegistros(r.registros || [], !!r.truncado);
+    REG_INICIADO = true;
+  } finally {
+    REG_CARGANDO = false;
+    btn.disabled = false; btn.innerHTML = original;
+    $('reg-cargando').classList.add('hidden');
+  }
+}
+
+$('form-reg').addEventListener('submit', ev => { ev.preventDefault(); cargarRegistros(); });
+
+function iniciarRegistros() {
+  if (!$('reg-desde').value) $('reg-desde').value = primeroDelMesISO();
+  if (!$('reg-hasta').value) $('reg-hasta').value = hoyISO();
+  if (!REG_INICIADO) cargarRegistros();
 }
 
 // ─── usuarios (empleados) ───

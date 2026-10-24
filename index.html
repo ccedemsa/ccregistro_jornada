@@ -1663,7 +1663,7 @@ async function sincronizarEstado(opts) {
       STATE.jornadaActiva = { rowId: data.rowId, inicio: data.inicio, inicioLoc: data.ubicacionInicio };
       localStorage.setItem('rj_jornada_activa', JSON.stringify(STATE.jornadaActiva));
       const d = new Date(data.inicio);
-      toast(`Tenés una jornada abierta desde ${fmtFecha(d)} ${fmtHora(d)}. Registrá el cierre.`, 'warn');
+      toast(`Tenés una jornada abierta desde ${fmtFecha(d)} ${fmtHora(d)}. No te olvides de registrar el cierre.`, 'warn');
     } else {
       STATE.jornadaActiva = null;
       localStorage.removeItem('rj_jornada_activa');
