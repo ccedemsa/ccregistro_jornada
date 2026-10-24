@@ -366,7 +366,7 @@ function renderUsuarios() {
     const tdE = document.createElement('td');
     const bd = document.createElement('span'); bd.className = 'badge ' + (u.activo ? 'ok' : 'off'); bd.textContent = u.activo ? 'Activo' : 'De baja';
     tdE.appendChild(bd);
-    const tdC = document.createElement('td'); tdC.className = 'mono'; tdC.textContent = u.tieneClave ? 'Personal' : 'Inicial (123456)';
+    const tdC = document.createElement('td'); tdC.className = 'mono'; tdC.textContent = u.tieneClave ? 'Modificada' : 'Inicial';
     const tdA = document.createElement('td'); tdA.className = 'acc';
 
     const b1 = document.createElement('button');
@@ -374,7 +374,7 @@ function renderUsuarios() {
     b1.textContent = u.activo ? 'Dar de baja' : 'Reactivar';
     const b2 = document.createElement('button');
     b2.className = 'btn btn-sec btn-sm'; b2.dataset.nombre = u.nombre; b2.dataset.accion = 'reset';
-    b2.textContent = 'Resetear clave';
+    b2.textContent = 'Resetear clave'; b2.title = 'Vuelve a la clave inicial (123456)';
     tdA.appendChild(b1); tdA.appendChild(b2);
 
     tr.appendChild(tdN); tr.appendChild(tdE); tr.appendChild(tdC); tr.appendChild(tdA);
