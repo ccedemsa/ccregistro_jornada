@@ -142,6 +142,8 @@
   table.tabla tr.ausente s { opacity:.7; }
   table.tabla tr.sin-reg td { color:var(--muted); }
   table.tabla tr.sin-reg td.nombre { font-weight:600; }
+  #sec-informe table.tabla.fija th { color:var(--warn); }
+  table.tabla tr:not(.sin-reg):not(.ausente) td.finde { color:var(--warn); }
   .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
 
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
@@ -775,7 +777,8 @@ function renderInforme(r) {
     celda(tr, d.usuario, 'nombre');
 
     const tdT = document.createElement('td'); tdT.textContent = TIPO_DIA_ROT[d.tipoDia] || d.tipoDia;
-    if (d.feriado) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Feriado', 'warn'); b.title = d.feriado; tdT.appendChild(b); }
+    if (d.tipoDia !== 'LUN-VIE') tdT.className = 'finde';                 // sábado, domingo y feriado: naranja (si el día no está atenuado)
+    if (d.feriado) tdT.title = d.feriado;
     d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     tr.appendChild(tdT);
