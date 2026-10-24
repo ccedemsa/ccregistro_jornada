@@ -132,6 +132,18 @@
   .badge.ok { color:var(--accent); border-color:rgba(0,229,160,.4); }
   .badge.off { color:var(--danger); border-color:rgba(255,71,87,.4); }
 
+  /* ─── MODAL ─── */
+  .modal-fondo { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100; }
+  .modal { width:100%; max-width:440px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; }
+  .modal h3 { font-size:18px; font-weight:800; margin-bottom:4px; }
+  .modal p.sub { font-family:var(--font-mono); font-size:12px; color:var(--muted); line-height:1.5; margin-bottom:6px; }
+  table.tabla tr.ausente td { color:var(--muted); }
+  table.tabla tr.ausente td.acc, table.tabla tr.ausente td.acc * { color:var(--text); }
+  table.tabla tr.ausente s { opacity:.7; }
+  table.tabla tr.sin-reg td { color:var(--muted); }
+  table.tabla tr.sin-reg td.nombre { font-weight:600; }
+  .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
+
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
   .toast.show { opacity:1; }
   .toast.success { border-color:rgba(0,229,160,.4); color:var(--accent); }
@@ -329,6 +341,21 @@
         </table>
         <div class="vacio hidden" id="fer-vacio" style="margin-top:12px;">No hay feriados cargados para ese año.</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: marcar ausente -->
+<div class="modal-fondo hidden" id="modal-ausente">
+  <div class="modal">
+    <h3>Marcar ausente</h3>
+    <p class="sub" id="mod-aus-det"></p>
+    <label for="mod-aus-motivo">Motivo (obligatorio)</label>
+    <input type="text" id="mod-aus-motivo" maxlength="200" autocomplete="off" placeholder="Ej: Aviso de enfermedad">
+    <div class="msg" id="mod-aus-msg"></div>
+    <div class="acciones-form">
+      <button type="button" class="btn btn-sm" id="mod-aus-ok">Marcar ausente</button>
+      <button type="button" class="btn btn-sec btn-sm" id="mod-aus-cancel">Cancelar</button>
     </div>
   </div>
 </div>
@@ -690,82 +717,144 @@ function fmtHM(min) {                 // 510 -> '8:30'; 0 -> '—'
 }
 const TIPO_DIA_ROT = { 'LUN-VIE': 'Lun a vie', 'SABADO': 'Sábado', 'DOMINGO': 'Domingo', 'FERIADO': 'Feriado' };
 
+let INF_FILTRO_USUARIO = '';
+
 function renderInforme(r) {
   const cont = $('inf-lista');
   cont.innerHTML = '';
   const chips = $('inf-resumen');
   chips.innerHTML = '';
   const chip = (html, clase) => { const c = document.createElement('span'); c.className = 'chip ' + (clase || ''); c.innerHTML = html; chips.appendChild(c); };
+  const conJornada = r.filas.filter(d => d.lapsos.length && !d.ausente).length;
+  const nAusentes = r.filas.filter(d => d.ausente && !d.fueraDeMes).length;
   chip('Horas mínimas: <b>' + String(r.horasMinimas).replace('.', ',') + '</b>');
-  chip('Días con jornada: <b>' + r.filas.length + '</b>');
+  chip('Días con jornada: <b>' + conJornada + '</b>');
+  if (nAusentes) chip('Ausentes: <b>' + nAusentes + '</b>');
   if (r.abiertas.length) chip('Sin cerrar (no se calculan): <b>' + r.abiertas.length + '</b>', 'warn');
   if (r.anomalas.length) chip('Inconsistentes: <b>' + r.anomalas.length + '</b>', 'warn');
   chips.classList.remove('hidden');
 
-  // las jornadas sin cerrar o inconsistentes no se calculan: se muestran como filas naranjas en el detalle
-  const pendientes = [];
-  r.abiertas.forEach(a => pendientes.push({ fecha: a.inicio.substring(0, 10), usuario: a.usuario, lapso: hhmm(a.inicio) + ' – sin cerrar', marca: 'Sin cerrar' }));
-  r.anomalas.forEach(a => pendientes.push({ fecha: a.inicio.substring(0, 10), usuario: a.usuario, lapso: hhmm(a.inicio) + ' – ' + hhmm(a.fin) + ' (fin anterior al inicio)', marca: 'Inconsistente' }));
-
-  if (!r.filas.length && !pendientes.length) {
-    const v = document.createElement('div'); v.className = 'vacio'; v.textContent = 'No hay jornadas en el mes seleccionado.';
+  if (!r.filas.length) {
+    const v = document.createElement('div'); v.className = 'vacio'; v.textContent = 'No hay empleados activos ni registros en el mes seleccionado.';
     cont.appendChild(v);
     return;
   }
 
   // totales por empleado
-  if (r.filas.length) {
   const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
   const t1 = document.createElement('table'); t1.className = 'tabla';
-  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante (informativo)</th></tr></thead>';
+  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante (informativo)</th></tr></thead>';
   const b1 = document.createElement('tbody');
   r.totales.forEach(t => {
     const tr = document.createElement('tr');
-    celda(tr, t.usuario, 'nombre'); celda(tr, String(t.dias), 'num'); celda(tr, fmtHM(t.total), 'num');
+    celda(tr, t.usuario, 'nombre'); celda(tr, String(t.dias), 'num'); celda(tr, t.ausentes ? String(t.ausentes) : '—', 'num'); celda(tr, fmtHM(t.total), 'num');
     celda(tr, fmtHM(t.normal), 'num'); celda(tr, fmtHM(t.c50), 'num'); celda(tr, fmtHM(t.c100), 'num'); celda(tr, fmtHM(t.faltante), 'num');
     b1.appendChild(tr);
   });
   t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
-  }
 
-  // detalle por día
+  // detalle: una fila por empleado y por día del mes
   const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:24px 0 10px;'; h5.textContent = 'Detalle por día'; cont.appendChild(h5);
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Ausencia</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
-  const todas = r.filas.map(d => ({ fecha: d.fecha, usuario: d.usuario, d: d }))
-    .concat(pendientes.map(p => ({ fecha: p.fecha, usuario: p.usuario, p: p })));
-  todas.sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.usuario < b.usuario ? -1 : a.usuario > b.usuario ? 1 : 0);
-  todas.forEach(x => {
+  r.filas.forEach(d => {
     const tr = document.createElement('tr');
     const clases = [];
-    if (previo !== null && previo !== x.fecha) clases.push('nuevo-dia');
-    previo = x.fecha;
-    if (x.p) clases.push('abierta');
+    if (previo !== null && previo !== d.fecha) clases.push('nuevo-dia');
+    previo = d.fecha;
+    if (d.pend.length) clases.push('abierta');
+    if (d.ausente) clases.push('ausente');
+    else if (!d.tieneRegistro) clases.push('sin-reg');
     tr.className = clases.join(' ');
-    celda(tr, fmtDiaCorto(x.fecha), 'num');
-    celda(tr, x.usuario, 'nombre');
-    if (x.p) {
-      const tdM = document.createElement('td'); tdM.appendChild(badge(x.p.marca, 'warn')); tr.appendChild(tdM);
-      celda(tr, x.p.lapso, 'num');
-      for (let i = 0; i < 5; i++) celda(tr, '—', 'num');
-      body.appendChild(tr);
-      return;
-    }
-    const d = x.d;
+
+    celda(tr, fmtDiaCorto(d.fecha), 'num');
+    celda(tr, d.usuario, 'nombre');
+
     const tdT = document.createElement('td'); tdT.textContent = TIPO_DIA_ROT[d.tipoDia] || d.tipoDia;
     if (d.feriado) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Feriado', 'warn'); b.title = d.feriado; tdT.appendChild(b); }
+    d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
+    if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     tr.appendChild(tdT);
-    celda(tr, d.lapsos.join(' / '), 'num');
-    celda(tr, fmtHM(d.total), 'num'); celda(tr, fmtHM(d.normal), 'num'); celda(tr, fmtHM(d.c50), 'num'); celda(tr, fmtHM(d.c100), 'num');
-    celda(tr, fmtHM(d.faltante), 'num');
+
+    const lapsos = d.lapsos.concat(d.pend.map(pd => pd.lapso)).join(' / ');
+    celda(tr, lapsos || (d.fueraDeMes ? '' : 'Sin registro'), d.tieneRegistro ? 'num' : 'det');
+
+    const campos = ['total', 'normal', 'c50', 'c100', 'faltante'];
+    campos.forEach(c => {
+      const td = document.createElement('td'); td.className = 'num';
+      if (d.ausente && d.orig && d.orig[c]) { const x = document.createElement('s'); x.textContent = fmtHM(d.orig[c]); td.appendChild(x); }
+      else td.textContent = fmtHM(d[c]);
+      tr.appendChild(td);
+    });
+
+    const tdA = document.createElement('td'); tdA.className = 'acc';
+    if (d.ausente) {
+      const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn btn-sec btn-sm';
+      bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
+      bq.title = d.ausente.motivo; bq.textContent = 'Quitar ausente'; tdA.appendChild(bq);
+    } else if (!d.futuro && !d.fueraDeMes) {
+      const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn btn-sec btn-sm';
+      bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
+      bm.textContent = 'Marcar ausente'; tdA.appendChild(bm);
+    }
+    tr.appendChild(tdA);
     body.appendChild(tr);
   });
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
 }
+
+// ─── ausencias (marcar / quitar) ───
+let AUS_CTX = null;
+
+function mostrarInformeActualizado(r) {
+  const y = window.scrollY;
+  renderInforme(r);
+  window.scrollTo(0, y);
+}
+
+$('inf-lista').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-aus-accion]');
+  if (!b) return;
+  const usuario = b.dataset.usuario, fecha = b.dataset.fecha;
+  if (b.dataset.ausAccion === 'marcar') {
+    AUS_CTX = { usuario, fecha };
+    $('mod-aus-det').textContent = usuario + ' · ' + fmtDiaCorto(fecha) + '. Ese día no va a sumar horas ni faltante.';
+    $('mod-aus-motivo').value = ''; $('mod-aus-msg').textContent = '';
+    $('modal-ausente').classList.remove('hidden');
+    setTimeout(() => $('mod-aus-motivo').focus(), 50);
+    return;
+  }
+  if (!confirm('¿Quitar la ausencia de ' + usuario + ' del ' + fmtDiaCorto(fecha) + '? Las horas registradas ese día vuelven a contar.')) return;
+  await conSpinner(b, 'Quitando...', async () => {
+    const r = await llamarGestor('gestor_ausencia_quitar', { usuario, fecha, filtroUsuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+    mostrarInformeActualizado(r);
+    toast('Ausencia quitada');
+  });
+});
+
+function cerrarModalAusente() { $('modal-ausente').classList.add('hidden'); AUS_CTX = null; }
+$('mod-aus-cancel').addEventListener('click', cerrarModalAusente);
+$('modal-ausente').addEventListener('click', ev => { if (ev.target === $('modal-ausente')) cerrarModalAusente(); });
+$('mod-aus-motivo').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('mod-aus-ok').click(); } });
+$('mod-aus-ok').addEventListener('click', async () => {
+  if (!AUS_CTX) return;
+  const motivo = $('mod-aus-motivo').value.trim();
+  if (!motivo) { $('mod-aus-msg').textContent = 'El motivo es obligatorio'; return; }
+  $('mod-aus-msg').textContent = '';
+  const ctx = AUS_CTX;
+  await conSpinner($('mod-aus-ok'), 'Guardando...', async () => {
+    const r = await llamarGestor('gestor_ausencia_marcar', { usuario: ctx.usuario, fecha: ctx.fecha, motivo, filtroUsuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) $('mod-aus-msg').textContent = r.error; return; }
+    cerrarModalAusente();
+    mostrarInformeActualizado(r);
+    toast('Día marcado como ausente');
+  });
+});
 
 async function cargarInforme() {
   if (INF_CARGANDO) { INF_PENDIENTE = true; return; }
