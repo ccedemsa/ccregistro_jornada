@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jornada">
+<meta name="theme-color" content="#0d0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
+<title>Registro de Jornada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161a22;
+    --surface2: #1e2330;
+    --border: #2a3040;
+    --accent: #00e5a0;
+    --accent2: #ff6b35;
+    --accent3: #4a9eff;
+    --text: #e8ecf4;
+    --muted: #6b7589;
+    --danger: #ff4757;
+    --warn: #ffa502;
+    --radius: 16px;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  /* TEMA CLARO */
+  :root.theme-claro {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #d1d5db;
+    --text: #1a1d24;
+    --muted: #6b7280;
+  }
+
+  :root.theme-claro body::before {
+    opacity: 0.02;
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── NOISE OVERLAY ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* ─── APP SHELL ─── */
+  #app {
+    position: relative; z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 0 24px;
+  }
+
+  /* ─── SCREENS ─── */
+  .screen { display: none; flex-direction: column; flex: 1; animation: fadeIn .35s ease; }
+  .screen.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ─── ONBOARDING ─── */
+  #screen-onboarding {
+    justify-content: center;
+    align-items: center;
+    padding: 32px 24px;
+    gap: 32px;
+    min-height: 100vh;
+  }
+  .onboarding-logo {
+    width: 80px; height: 80px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    box-shadow: 0 0 40px rgba(0,229,160,.25);
+  }
+  .onboarding-title {
+    font-size: 28px; font-weight: 800;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .onboarding-title span { color: var(--accent); }
+  .onboarding-sub {
+    font-size: 14px; color: var(--muted);
+    text-align: center; line-height: 1.6;
+    font-family: var(--font-mono);
+  }
+
+  /* ─── HEADER ─── */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-brand {
+    font-size: 18px; font-weight: 800;
+    letter-spacing: -.3px;
+  }
+  .header-brand span { color: var(--accent); }
+  .header-user {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent3), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    color: var(--bg);
+    cursor: pointer;
+    transition: transform .15s ease;
+  }
+  .avatar:active { transform: scale(.93); }
+
+  /* ─── STATUS PILL ─── */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 12px; font-weight: 600; font-family: var(--font-mono);
+    text-transform: uppercase; letter-spacing: .5px;
+    border: 1px solid;
+  }
+  .status-pill.idle { background: rgba(107,117,137,.12); border-color: rgba(107,117,137,.3); color: var(--muted); }
+  .status-pill.active { background: rgba(0,229,160,.1); border-color: rgba(0,229,160,.35); color: var(--accent); }
+  .status-pill.ended { background: rgba(74,158,255,.1); border-color: rgba(74,158,255,.35); color: var(--accent3); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .status-pill.active .status-dot { animation: pulse 1.5s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .5; transform: scale(.8); }
+  }
+
+  /* ─── MAIN CONTENT ─── */
+  .content { padding: 12px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-family: var(--font-mono);
+    margin-bottom: 14px;
+  }
+
+  /* ─── TIME DISPLAY ─── */
+  .time-display {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .time-now {
+    font-size: 32px; font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--text);
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .date-now {
+    font-size: 12px; color: var(--muted); font-family: var(--font-mono);
+    text-transform: capitalize;
+  }
+
+  /* ─── JORNADA CARD ─── */
+  .jornada-info {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .jornada-field {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .jornada-field label {
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .8px;
+    font-family: var(--font-mono); font-weight: 500;
+    display: block; margin-bottom: 4px;
+  }
+  .jornada-field span {
+    font-size: 14px; font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+  .jornada-field.accent span { color: var(--accent); }
+  .jornada-field.accent3 span { color: var(--accent3); }
+
+  /* ─── ELAPSED ─── */
+  .elapsed-display {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(0,229,160,.06);
+    border: 1px solid rgba(0,229,160,.2);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
+  .elapsed-label { font-size: 11px; color: var(--accent); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .5px; }
+  .elapsed-value { font-size: 20px; font-weight: 700; font-family: var(--font-mono); color: var(--accent); }
+
+  /* ─── LOCATION ─── */
+  .location-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted); font-family: var(--font-mono);
+    margin-top: 8px;
+  }
+  .location-row .icon { font-size: 14px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    border: none;
+    font-family: var(--font-display);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all .15s ease;
+    width: 100%;
+    position: relative; overflow: hidden;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,.07);
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .btn:active::after { opacity: 1; }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #00c88a 100%);
+    color: #0d0f14;
+    box-shadow: 0 4px 24px rgba(0,229,160,.3);
+  }
+  .btn-danger {
+    background: linear-gradient(135deg, var(--accent2) 0%, #e05020 100%);
+    color: white;
+    box-shadow: 0 4px 24px rgba(255,107,53,.25);
+  }
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-warn {
+    background: linear-gradient(135deg, var(--warn) 0%, #e08b00 100%);
+    color: #0d0f14;
+    box-shadow: 0 4px 24px rgba(255,165,2,.25);
+  }
+  .btn:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  .btn-sm { padding: 10px 16px; font-size: 13px; border-radius: 8px; }
+
+  /* ─── TEXTAREA ─── */
+  textarea, input[type="text"], input[type="email"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    resize: none;
+    outline: none;
+    transition: border-color .2s;
+  }
+  textarea:focus, input[type="text"]:focus, input[type="email"]:focus {
+    border-color: var(--accent3);
+  }
+  textarea::placeholder, input::placeholder { color: var(--muted); }
+
+  /* ─── HISTORIAL ─── */
+  .history-list { display: flex; flex-direction: column; gap: 10px; }
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex; gap: 12px;
+  }
+  .history-type {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .history-type.jornada { background: rgba(0,229,160,.12); }
+  .history-type.novedad { background: rgba(255,107,53,.12); }
+  .history-body { flex: 1; min-width: 0; }
+  .history-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .history-meta { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .history-desc { font-size: 12px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.75);
+    backdrop-filter: blur(6px);
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; animation: slideUp .3s ease; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 50%; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; color: var(--muted);
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; color: var(--muted); font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+
+  /* ─── TOAST ─── */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-size: 13px; font-family: var(--font-mono);
+    white-space: normal;
+    z-index: 200;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s ease;
+    opacity: 0;
+    max-width: 85vw;
+    display: flex; align-items: center; gap: 8px;
+    text-align: left;
+    line-height: 1.4;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.success { border-color: rgba(0,229,160,.4); color: var(--accent); }
+  .toast.error { border-color: rgba(255,71,87,.4); color: var(--danger); }
+  .toast.warn { border-color: rgba(255,165,2,.4); color: var(--warn); }
+
+  /* ─── TABS ─── */
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    margin: 0 20px;
+  }
+  .tab {
+    flex: 1; padding: 10px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: all .2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .tab.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+
+  /* ─── NAV ─── */
+  .bottom-nav {
+    display: flex;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    padding: 8px 0 env(safe-area-inset-bottom, 0);
+    position: sticky; bottom: 0;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px;
+    gap: 4px;
+    border: none; background: transparent;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+    transition: color .15s ease;
+  }
+  .nav-item.active { color: var(--accent); }
+  .nav-icon { font-size: 20px; }
+
+  /* ─── DIVIDER ─── */
+  .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* ─── BADGE ─── */
+  .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px; font-family: var(--font-mono); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+  .badge-green { background: rgba(0,229,160,.12); color: var(--accent); }
+  .badge-orange { background: rgba(255,107,53,.12); color: var(--accent2); }
+  .badge-blue { background: rgba(74,158,255,.12); color: var(--accent3); }
+
+  /* ─── SPINNER ─── */
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,0,0,.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── CONFIG SHEET URL BOX ─── */
+  .config-box {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 12px; font-family: var(--font-mono);
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .config-box strong { color: var(--accent3); }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px; gap: 10px; color: var(--muted);
+    font-size: 13px; font-family: var(--font-mono);
+    text-align: center;
+  }
+  .empty-state .icon { font-size: 36px; }
+
+  /* ─── SCROLLABLE CONTENT ─── */
+  .scroll-content { overflow-y: auto; flex: 1; }
+
+  .sep { height: 16px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ════════════════════════════ ONBOARDING ════════════════════════════ -->
+  <div id="screen-onboarding" class="screen active">
+    <div class="onboarding-logo">📋</div>
+    <div>
+      <div class="onboarding-title">Registro de<br><span>Jornada</span></div>
+    </div>
+    <div class="onboarding-sub">Primera vez que usás la app.<br>Ingresá tu nombre para identificarte.</div>
+    <div style="width:100%; display:flex; flex-direction:column; gap:12px;">
+      <div class="form-group">
+        <label class="form-label">Tu nombre completo</label>
+        <input type="text" id="input-nombre" placeholder="Ej: Juan García" maxlength="60">
+      </div>
+      <button class="btn btn-primary" id="btn-guardar-config">
+        Comenzar →
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════ MAIN APP ════════════════════════════ -->
+  <div id="screen-main" class="screen">
+
+    <!-- HEADER -->
+    <div class="app-header">
+      <div class="header-brand">📋 <span>Registro Jornada</span></div>
+      <div class="header-user">
+        <button class="avatar" id="user-avatar" id="user-avatar" style="border:none; cursor:pointer;">?</button>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div style="height:8px"></div>
+    <div class="tabs" style="margin: 0 20px;">
+      <button class="tab active" onclick="switchTab('inicio')" id="tab-inicio">
+        <span>⏱️</span> Jornada
+      </button>
+      <button class="tab" onclick="switchTab('novedades')" id="tab-novedades">
+        <span>📝</span> Novedades
+      </button>
+      <button class="tab" onclick="switchTab('historial')" id="tab-historial">
+        <span>📊</span> Historial
+      </button>
+    </div>
+    <div style="height:8px"></div>
+
+    <!-- ─── TAB: JORNADA ─── -->
+    <div id="tab-content-inicio" class="scroll-content">
+      <div class="content">
+
+        <!-- Reloj -->
+        <div class="time-display">
+          <div class="time-now" id="clock">--:--:--</div>
+          <div class="date-now" id="date-display">Cargando...</div>
+        </div>
+
+        <!-- Estado -->
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div class="card-title" style="margin:0">Estado actual</div>
+          <div class="status-pill idle" id="status-pill">
+            <div class="status-dot"></div>
+            <span id="status-text">Sin jornada</span>
+          </div>
+        </div>
+
+        <!-- Info jornada activa -->
+        <div id="jornada-activa-card" class="card" style="display:none">
+          <div class="card-title">Jornada en curso</div>
+          <div class="jornada-info">
+            <div class="jornada-field accent" style="grid-column: 1 / -1;">
+              <label>Inicio</label>
+              <span id="jornada-inicio-display" style="font-size:13px;">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info jornada finalizada -->
+        <div id="jornada-fin-card" class="card" style="display:none">
+          <div class="card-title">Última jornada</div>
+          <div class="jornada-info">
+            <div class="jornada-field accent" style="grid-column: 1 / -1;">
+              <label>Fecha y horario</label>
+              <span id="fin-fecha-horario-display" style="font-size:13px">--</span>
+            </div>
+          </div>
+          <div style="font-size:12px; color:var(--muted); font-family:var(--font-mono);">
+            Duración: <strong id="fin-duracion" style="color:var(--text)">--</strong>
+          </div>
+        </div>
+
+        <!-- Botones principales -->
+        <div class="card" id="inicio-jornada-card" style="background:rgba(0,229,160,.06); border-color:rgba(0,229,160,.2);">
+          <div class="card-title" style="color:var(--accent);">⏰ Fecha y hora de inicio</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+            <div>
+              <label style="font-size:10px; color:var(--muted); display:block; margin-bottom:4px; font-family:var(--font-mono);">FECHA</label>
+              <input type="date" id="input-inicio-fecha" style="font-size:14px; font-weight:600; padding:10px;">
+            </div>
+            <div style="display:flex; gap:6px; align-items:flex-end;">
+              <div style="flex:1;">
+                <label style="font-size:10px; color:var(--muted); display:block; margin-bottom:4px; font-family:var(--font-mono);">HORA</label>
+                <input type="time" id="input-inicio-hora" style="font-size:14px; font-weight:600; padding:10px; width:100%;">
+              </div>
+              <button onclick="resetearHoraInicio()" title="Volver a hora actual" style="font-size:18px; padding:10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--accent); cursor:pointer; height:44px; width:44px; display:flex; align-items:center; justify-content:center;">
+                🔄
+              </button>
+            </div>
+          </div>
+          <div style="font-size:11px; color:var(--accent); margin-bottom:12px; font-family:var(--font-mono);">
+            💡 Modificá si olvidaste registrar el inicio
+          </div>
+          <button class="btn btn-primary" id="btn-inicio-jornada" onclick="iniciarJornada()">
+            🟢&nbsp; Iniciar Jornada
+          </button>
+        </div>
+        
+        <!-- Fin de jornada con observaciones -->
+        <div id="fin-jornada-card" style="display:none;">
+          <div class="card" style="background:rgba(255,107,53,.06); border-color:rgba(255,107,53,.2);">
+            <div class="card-title" style="color:var(--accent2);">⏰ Fecha y hora de fin</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+              <div>
+                <label style="font-size:10px; color:var(--muted); display:block; margin-bottom:4px; font-family:var(--font-mono);">FECHA</label>
+                <input type="date" id="input-fin-fecha" style="font-size:14px; font-weight:600; padding:10px;">
+              </div>
+              <div style="display:flex; gap:6px; align-items:flex-end;">
+                <div style="flex:1;">
+                  <label style="font-size:10px; color:var(--muted); display:block; margin-bottom:4px; font-family:var(--font-mono);">HORA</label>
+                  <input type="time" id="input-fin-hora" style="font-size:14px; font-weight:600; padding:10px; width:100%;">
+                </div>
+                <button onclick="resetearHoraFin()" title="Volver a hora actual" style="font-size:18px; padding:10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--accent2); cursor:pointer; height:44px; width:44px; display:flex; align-items:center; justify-content:center;">
+                  🔄
+                </button>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--accent2); margin-bottom:12px; font-family:var(--font-mono);">
+              💡 Modificá si olvidaste registrar el fin
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">Observaciones (opcional)</label>
+              <textarea id="input-obs-fin" rows="3" placeholder="Alguna observación al cierre de jornada..."></textarea>
+            </div>
+            <button class="btn btn-danger" id="btn-confirmar-fin" onclick="finalizarJornada()">
+              🔴&nbsp; Finalizar Jornada
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── TAB: NOVEDADES ─── -->
+    <div id="tab-content-novedades" class="scroll-content" style="display:none">
+      <div class="content">
+        <div class="card">
+          <div class="card-title">Nueva novedad</div>
+          <div class="form-group">
+            <label class="form-label">Descripción</label>
+            <textarea id="input-novedad" rows="4" placeholder="Describí la novedad a registrar..."></textarea>
+          </div>
+          <div style="height:12px"></div>
+          <button class="btn btn-warn" id="btn-registrar-novedad" onclick="registrarNovedad()">
+            📝&nbsp; Registrar Novedad
+          </button>
+        </div>
+        <div class="config-box" style="font-size:11px;">
+          💡 Las novedades se registran con tu nombre, timestamp y ubicación. Pueden registrarse sin jornada activa.
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: HISTORIAL ─── -->
+    <div id="tab-content-historial" class="scroll-content" style="display:none">
+      <div class="content">
+        <div id="historial-list" class="history-list">
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <div>El historial se carga desde Google Sheets.<br>Conectá tu hoja para ver registros.</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="cargarHistorial()">
+          🔄 Actualizar historial
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /screen-main -->
+
+</div><!-- /app -->
+
+<!-- ════════════════ MODAL: CONFIRMAR RESET ════════════════ -->
+<div class="modal-overlay" id="modal-confirmar-reset">
+  <div class="modal">
+    <div class="modal-title">⚠️ Confirmar eliminación</div>
+    <p style="color:var(--muted); line-height:1.6; margin:16px 0;">
+      Esto borrará tu nombre y datos de sesión de este dispositivo. 
+      <strong style="color:var(--text)">Los registros en el Sheet no se eliminan.</strong>
+    </p>
+    <p style="color:var(--muted); line-height:1.6; margin:16px 0;">
+      Tendrás que volver a ingresar tu nombre en el próximo acceso.
+    </p>
+    <button class="btn btn-secondary" onclick="confirmarReset()" style="background:var(--danger); color:white; border-color:var(--danger);">
+      Sí, eliminar datos
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="cerrarModal('modal-confirmar-reset')">
+      Cancelar
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════ MODAL: PERFIL ════════════════ -->
+<div class="modal-overlay" id="modal-perfil">
+  <div class="modal">
+    <div class="modal-title">👤 Mi perfil</div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input type="text" id="input-editar-nombre" disabled style="opacity:0.6; cursor:not-allowed;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tema de la app</label>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary btn-sm" id="btn-tema-oscuro" onclick="cambiarTema('oscuro')" style="flex:1">
+          🌙 Oscuro
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btn-tema-claro" onclick="cambiarTema('claro')" style="flex:1">
+          ☀️ Claro
+        </button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <button class="btn btn-secondary btn-sm" onclick="abrirConfirmacionReset()" style="color:var(--danger); border-color: rgba(255,71,87,.3);">
+      🗑 Borrar datos y volver al inicio
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="cerrarModal('modal-perfil')">
+      Cerrar
+    </button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon">✓</span>
+  <span id="toast-msg">OK</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  CONFIGURACIÓN — CAMBIAR ESTA URL
+// ═══════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqh-h9zFaHOmpKOdXbaqL9L1Bu7KRuW-CIXsn8fGFMqVDSqBOthjS0bmbTfCDTAfwq/exec';
+
+// ═══════════════════════════════════════════
+//  ESTADO GLOBAL
+// ═══════════════════════════════════════════
+const STATE = {
+  usuario: null,
+  userId: null,
+  sheetUrl: APPS_SCRIPT_URL,
+  jornadaActiva: null,   // { rowId, inicio, inicioLoc }
+  ubicacion: null,
+  historialLocal: []
+};
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+function init() {
+  STATE.usuario = localStorage.getItem('rj_usuario');
+  STATE.userId = localStorage.getItem('rj_user_id');
+  STATE.sheetUrl = APPS_SCRIPT_URL;
+  const jornadaStr = localStorage.getItem('rj_jornada_activa');
+  if (jornadaStr) {
+    try { STATE.jornadaActiva = JSON.parse(jornadaStr); } catch(e) {}
+  }
+
+  if (!STATE.usuario || !STATE.userId) {
+    mostrarScreen('onboarding');
+  } else {
+    mostrarScreen('main');
+    actualizarUIJornada();
+    pedirUbicacion();
+  }
+  iniciarReloj();
+}
+
+// ═══════════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════════
+function mostrarScreen(s) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  document.getElementById('screen-' + (s === 'main' ? 'main' : 'onboarding')).classList.add('active');
+}
+
+function switchTab(tab) {
+  ['inicio','novedades','historial'].forEach(t => {
+    document.getElementById('tab-content-' + t).style.display = t === tab ? '' : 'none';
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'historial') cargarHistorial();
+}
+
+// ═══════════════════════════════════════════
+//  ONBOARDING
+// ═══════════════════════════════════════════
+document.getElementById('btn-guardar-config').addEventListener('click', async () => {
+  const nombre = document.getElementById('input-nombre').value.trim();
+  if (!nombre) { toast('Ingresá tu nombre', 'error'); return; }
+  
+  const btn = document.getElementById('btn-guardar-config');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Validando...';
+  
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ accion: 'validar_usuario', usuario: nombre })
+    });
+    
+    const data = await resp.json();
+    
+    if (data.error) {
+      toast(data.error, 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Comenzar →';
+      return;
+    }
+    
+    if (data.ok && data.userId) {
+      localStorage.setItem('rj_usuario', nombre);
+      localStorage.setItem('rj_user_id', data.userId);
+      STATE.usuario = nombre;
+      STATE.userId = data.userId;
+      mostrarScreen('main');
+      actualizarUIJornada();
+      pedirUbicacion();
+    } else {
+      toast('Error en la validación', 'error');
+      btn.disabled = false;
+      btn.innerHTML = 'Comenzar →';
+    }
+  } catch(e) {
+    toast('Error de conexión con el servidor', 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Comenzar →';
+  }
+});
+
+// ═══════════════════════════════════════════
+//  RELOJ
+// ═══════════════════════════════════════════
+let updateInicioFieldsInterval = null;
+
+function iniciarReloj() {
+  setInterval(() => {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      String(now.getHours()).padStart(2,'0') + ':' +
+      String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('date-display').textContent =
+      now.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }, 1000);
+}
+
+function actualizarCamposInicioTiempoReal() {
+  const inputFecha = document.getElementById('input-inicio-fecha');
+  const inputHora = document.getElementById('input-inicio-hora');
+  
+  if (inputFecha?.dataset.userEdited === 'true') return;
+  
+  const now = new Date();
+  const fecha = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const hora = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  
+  if (inputFecha && document.activeElement !== inputFecha) {
+    inputFecha.value = fecha;
+  }
+  if (inputHora && document.activeElement !== inputHora) {
+    inputHora.value = hora;
+  }
+}
+
+function resetearHoraInicio() {
+  const inputFecha = document.getElementById('input-inicio-fecha');
+  const inputHora = document.getElementById('input-inicio-hora');
+  delete inputFecha?.dataset.userEdited;
+  delete inputHora?.dataset.userEdited;
+  actualizarCamposInicioTiempoReal();
+}
+
+function iniciarActualizacionCamposInicio() {
+  if (updateInicioFieldsInterval) clearInterval(updateInicioFieldsInterval);
+  
+  const inputFecha = document.getElementById('input-inicio-fecha');
+  const inputHora = document.getElementById('input-inicio-hora');
+  delete inputFecha?.dataset.userEdited;
+  delete inputHora?.dataset.userEdited;
+  
+  const handleEdit = () => {
+    if (inputFecha) inputFecha.dataset.userEdited = 'true';
+    if (inputHora) inputHora.dataset.userEdited = 'true';
+  };
+  
+  if (inputFecha && !inputFecha.dataset.listenerAdded) {
+    inputFecha.addEventListener('change', handleEdit);
+    inputFecha.dataset.listenerAdded = 'true';
+  }
+  
+  if (inputHora && !inputHora.dataset.listenerAdded) {
+    inputHora.addEventListener('change', handleEdit);
+    inputHora.dataset.listenerAdded = 'true';
+  }
+  
+  actualizarCamposInicioTiempoReal();
+  updateInicioFieldsInterval = setInterval(actualizarCamposInicioTiempoReal, 1000);
+}
+
+function detenerActualizacionCamposInicio() {
+  if (updateInicioFieldsInterval) {
+    clearInterval(updateInicioFieldsInterval);
+    updateInicioFieldsInterval = null;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  UBICACIÓN
+// ═══════════════════════════════════════════
+function pedirUbicacion() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      STATE.ubicacion = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+    },
+    err => {},
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
+
+function fmtUbicacion(loc) {
+  if (!loc) return 'Sin ubicación';
+  return `${loc.lat.toFixed(5)},${loc.lon.toFixed(5)}`;
+}
+
+// ═══════════════════════════════════════════
+//  AVATAR
+// ═══════════════════════════════════════════
+function actualizarAvatar() {
+  const nombre = STATE.usuario || '?';
+  const partes = nombre.trim().split(' ');
+  const iniciales = partes.length >= 2
+    ? (partes[0][0] + partes[partes.length-1][0]).toUpperCase()
+    : nombre.substring(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = iniciales;
+}
+
+// ═══════════════════════════════════════════
+//  UI JORNADA
+// ═══════════════════════════════════════════
+function actualizarUIJornada() {
+  actualizarAvatar();
+  
+  const pill = document.getElementById('status-pill');
+  const statusTxt = document.getElementById('status-text');
+  const cardInicio = document.getElementById('inicio-jornada-card');
+  const cardFin = document.getElementById('fin-jornada-card');
+  const cardActiva = document.getElementById('jornada-activa-card');
+  const cardUltima = document.getElementById('jornada-fin-card');
+
+  if (STATE.jornadaActiva) {
+    // Detener actualización de campos de inicio
+    detenerActualizacionCamposInicio();
+    
+    // Iniciar actualización de campos de fin
+    iniciarActualizacionCamposFin();
+    
+    pill.className = 'status-pill active';
+    statusTxt.textContent = 'Jornada activa';
+    cardInicio.style.display = 'none';
+    cardFin.style.display = '';
+    cardActiva.style.display = '';
+    cardUltima.style.display = 'none';
+
+    const dt = new Date(STATE.jornadaActiva.inicio);
+    const dia = String(dt.getDate()).padStart(2,'0');
+    const mes = String(dt.getMonth()+1).padStart(2,'0');
+    const hora = String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    
+    document.getElementById('jornada-inicio-display').textContent = `${dia}/${mes} • ${hora}`;
+  } else {
+    // Detener actualización de campos de fin
+    if (updateFinFieldsInterval) {
+      clearInterval(updateFinFieldsInterval);
+      updateFinFieldsInterval = null;
+    }
+    
+    // Iniciar actualización automática de campos de inicio
+    iniciarActualizacionCamposInicio();
+    
+    pill.className = 'status-pill idle';
+    statusTxt.textContent = 'Sin jornada';
+    cardInicio.style.display = '';
+    cardFin.style.display = 'none';
+    cardActiva.style.display = 'none';
+
+    const ultima = localStorage.getItem('rj_ultima_jornada');
+    if (ultima) {
+      try {
+        const u = JSON.parse(ultima);
+        cardUltima.style.display = '';
+        pill.className = 'status-pill ended';
+        statusTxt.textContent = 'Jornada finalizada';
+        
+        const dInicio = new Date(u.inicio);
+        const dFin = new Date(u.fin);
+        
+        // Verificar si inicio y fin son el mismo día
+        const mismoDia = dInicio.getDate() === dFin.getDate() && 
+                         dInicio.getMonth() === dFin.getMonth() && 
+                         dInicio.getFullYear() === dFin.getFullYear();
+        
+        const horaInicio = fmtHora(dInicio);
+        const horaFin = fmtHora(dFin);
+        
+        let displayText;
+        if (mismoDia) {
+          // Mismo día: "09/02 • 09:00 - 22:48"
+          const dia = String(dInicio.getDate()).padStart(2,'0');
+          const mes = String(dInicio.getMonth()+1).padStart(2,'0');
+          displayText = `${dia}/${mes} • ${horaInicio} - ${horaFin}`;
+        } else {
+          // Días diferentes: "09/02 09:00 - 10/02 22:48"
+          const diaIni = String(dInicio.getDate()).padStart(2,'0');
+          const mesIni = String(dInicio.getMonth()+1).padStart(2,'0');
+          const diaFin = String(dFin.getDate()).padStart(2,'0');
+          const mesFin = String(dFin.getMonth()+1).padStart(2,'0');
+          displayText = `${diaIni}/${mesIni} ${horaInicio} - ${diaFin}/${mesFin} ${horaFin}`;
+        }
+        
+        document.getElementById('fin-fecha-horario-display').textContent = displayText;
+        document.getElementById('fin-duracion').textContent = calcDuracion(dInicio, dFin);
+      } catch(e) { cardUltima.style.display = 'none'; }
+    } else {
+      cardUltima.style.display = 'none';
+    }
+  }
+}
+
+function fmtHora(d) {
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function calcDuracion(d1, d2) {
+  const diff = Math.abs(d2 - d1) / 1000;
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+// Formatea fecha como "YYYY-MM-DD HH:MM:SS" en hora local del dispositivo
+function fmtFechaLocal(d) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ` +
+         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ═══════════════════════════════════════════
+//  INICIO JORNADA
+// ═══════════════════════════════════════════
+async function iniciarJornada() {
+  const fecha = document.getElementById('input-inicio-fecha').value;
+  const hora = document.getElementById('input-inicio-hora').value;
+  
+  if (!fecha || !hora) {
+    toast('Seleccioná fecha y hora de inicio', 'error');
+    return;
+  }
+  
+  // Validar que no sea fecha/hora futura
+  const fechaHoraSeleccionada = new Date(`${fecha}T${hora}:00`);
+  const ahora = new Date();
+  
+  if (fechaHoraSeleccionada > ahora) {
+    toast('No podés registrar una fecha/hora futura', 'error');
+    return;
+  }
+  
+  const btn = document.getElementById('btn-inicio-jornada');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Registrando...';
+
+  await pedirUbicacionAsync();
+
+  const fechaHoraInicio = new Date(`${fecha}T${hora}:00`);
+  const rowId = `${STATE.usuario}_${fmtFechaLocal(fechaHoraInicio)}`;
+  const locStr = fmtUbicacion(STATE.ubicacion);
+  const payload = {
+    accion: 'inicio_jornada',
+    rowId, usuario: STATE.usuario, userId: STATE.userId,
+    fechaHoraInicio: fmtFechaLocal(fechaHoraInicio),
+    ubicacionInicio: locStr
+  };
+
+  const resultado = await enviarASheet(payload);
+  btn.disabled = false;
+  btn.innerHTML = '🟢&nbsp; Iniciar Jornada';
+  if (!resultado) return;
+
+  STATE.jornadaActiva = { rowId, inicio: fechaHoraInicio.toISOString(), inicioLoc: locStr };
+  localStorage.setItem('rj_jornada_activa', JSON.stringify(STATE.jornadaActiva));
+  actualizarUIJornada();
+}
+
+// ═══════════════════════════════════════════
+//  FIN JORNADA
+// ═══════════════════════════════════════════
+let updateFinFieldsInterval = null;
+
+function actualizarCamposFinTiempoReal() {
+  const inputFecha = document.getElementById('input-fin-fecha');
+  const inputHora = document.getElementById('input-fin-hora');
+  
+  if (inputFecha?.dataset.userEdited === 'true') return;
+  
+  const now = new Date();
+  const fecha = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const hora = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  
+  if (inputFecha && document.activeElement !== inputFecha) {
+    inputFecha.value = fecha;
+  }
+  if (inputHora && document.activeElement !== inputHora) {
+    inputHora.value = hora;
+  }
+}
+
+function resetearHoraFin() {
+  const inputFecha = document.getElementById('input-fin-fecha');
+  const inputHora = document.getElementById('input-fin-hora');
+  delete inputFecha?.dataset.userEdited;
+  delete inputHora?.dataset.userEdited;
+  actualizarCamposFinTiempoReal();
+}
+
+function iniciarActualizacionCamposFin() {
+  if (updateFinFieldsInterval) clearInterval(updateFinFieldsInterval);
+  
+  const inputFecha = document.getElementById('input-fin-fecha');
+  const inputHora = document.getElementById('input-fin-hora');
+  delete inputFecha?.dataset.userEdited;
+  delete inputHora?.dataset.userEdited;
+  
+  const handleEdit = () => {
+    if (inputFecha) inputFecha.dataset.userEdited = 'true';
+    if (inputHora) inputHora.dataset.userEdited = 'true';
+  };
+  
+  if (inputFecha && !inputFecha.dataset.listenerAdded) {
+    inputFecha.addEventListener('change', handleEdit);
+    inputFecha.dataset.listenerAdded = 'true';
+  }
+  
+  if (inputHora && !inputHora.dataset.listenerAdded) {
+    inputHora.addEventListener('change', handleEdit);
+    inputHora.dataset.listenerAdded = 'true';
+  }
+  
+  actualizarCamposFinTiempoReal();
+  updateFinFieldsInterval = setInterval(actualizarCamposFinTiempoReal, 1000);
+}
+
+async function finalizarJornada() {
+  if (!STATE.jornadaActiva) return;
+  
+  const fecha = document.getElementById('input-fin-fecha').value;
+  const hora = document.getElementById('input-fin-hora').value;
+  
+  if (!fecha || !hora) {
+    toast('Seleccioná fecha y hora de fin', 'error');
+    return;
+  }
+  
+  // Validar que no sea fecha/hora futura
+  const fechaHoraSeleccionada = new Date(`${fecha}T${hora}:00`);
+  const ahora = new Date();
+  
+  if (fechaHoraSeleccionada > ahora) {
+    toast('No podés registrar una fecha/hora futura', 'error');
+    return;
+  }
+  
+  // Validar que el fin sea después del inicio
+  const fechaInicio = new Date(STATE.jornadaActiva.inicio);
+  if (fechaHoraSeleccionada < fechaInicio) {
+    toast('El fin no puede ser antes del inicio', 'error');
+    return;
+  }
+  
+  const btn = document.getElementById('btn-confirmar-fin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Registrando...';
+
+  await pedirUbicacionAsync();
+
+  const fechaHoraFin = new Date(`${fecha}T${hora}:00`);
+  const obs = document.getElementById('input-obs-fin').value.trim();
+  const locStr = fmtUbicacion(STATE.ubicacion);
+  const inicioGuardado = STATE.jornadaActiva.inicio;
+  const rowIdGuardado  = STATE.jornadaActiva.rowId;
+
+  const payload = {
+    accion: 'fin_jornada',
+    rowId: rowIdGuardado,
+    usuario: STATE.usuario,
+    userId: STATE.userId,
+    fechaHoraFin: fmtFechaLocal(fechaHoraFin),
+    ubicacionFin: locStr,
+    observaciones: obs
+  };
+
+  const resultado = await enviarASheet(payload);
+
+  // Siempre restaurar el botón
+  btn.disabled = false;
+  btn.innerHTML = '🔴&nbsp; Finalizar Jornada';
+
+  if (!resultado) return;
+
+  localStorage.setItem('rj_ultima_jornada', JSON.stringify({
+    inicio: inicioGuardado,
+    fin: fechaHoraFin.toISOString()
+  }));
+  STATE.jornadaActiva = null;
+  localStorage.removeItem('rj_jornada_activa');
+  document.getElementById('input-obs-fin').value = '';
+  actualizarUIJornada();
+}
+
+// ═══════════════════════════════════════════
+//  NOVEDAD
+// ═══════════════════════════════════════════
+async function registrarNovedad() {
+  const desc = document.getElementById('input-novedad').value.trim();
+  if (!desc) { toast('Ingresá la descripción', 'error'); return; }
+  
+  const btn = document.getElementById('btn-registrar-novedad');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  await pedirUbicacionAsync();
+
+  const ahora = new Date();
+  const locStr = fmtUbicacion(STATE.ubicacion);
+  const rowId = `${STATE.usuario}_${fmtFechaLocal(ahora)}`;
+  const payload = {
+    accion: 'novedad',
+    rowId, usuario: STATE.usuario, userId: STATE.userId,
+    fechaHora: fmtFechaLocal(ahora),
+    ubicacion: locStr,
+    descripcion: desc
+  };
+
+  const ok = await enviarASheet(payload);
+  btn.disabled = false;
+  btn.innerHTML = '📝&nbsp; Registrar Novedad';
+  if (ok) {
+    document.getElementById('input-novedad').value = '';
+    STATE.historialLocal.unshift({ tipo: 'novedad', ts: ahora, desc });
+  }
+}
+
+// ═══════════════════════════════════════════
+//  HISTORIAL
+// ═══════════════════════════════════════════
+async function cargarHistorial() {
+  const cont = document.getElementById('historial-list');
+  cont.innerHTML = '<div class="empty-state"><div class="icon">🔄</div><div>Cargando...</div></div>';
+  try {
+    const url = `${STATE.sheetUrl}?accion=historial&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
+    const resp = await fetch(url, { method: 'GET', mode: 'cors' });
+    const data = await resp.json();
+    
+    if (data.registros && data.registros.length > 0) {
+      // Filtrar solo mes actual y anterior
+      const now = new Date();
+      const mesActual = now.getMonth();
+      const anioActual = now.getFullYear();
+      
+      const filtrados = data.registros.filter(r => {
+        const fecha = r.fechaHoraInicio || r.fechaHora;
+        if (!fecha) return true; // Incluir si no tiene fecha
+        
+        // Parsear fecha robustamente
+        let d;
+        if (fecha.includes('T')) {
+          d = new Date(fecha);
+        } else {
+          d = new Date(fecha.replace(' ', 'T'));
+        }
+        
+        if (isNaN(d.getTime())) return true; // Incluir si fecha es inválida
+        
+        const mesReg = d.getMonth();
+        const anioReg = d.getFullYear();
+        
+        // Mismo año y mes actual
+        if (anioReg === anioActual && mesReg === mesActual) return true;
+        // Mismo año y mes anterior
+        if (anioReg === anioActual && mesReg === mesActual - 1) return true;
+        // Año anterior y diciembre (si estamos en enero)
+        if (mesActual === 0 && anioReg === anioActual - 1 && mesReg === 11) return true;
+        
+        return false;
+      });
+      
+      if (filtrados.length > 0) {
+        // Ordenar por fecha, más reciente primero
+        filtrados.sort((a, b) => {
+          const fechaA = a.fechaHoraInicio || a.fechaHora || '';
+          const fechaB = b.fechaHoraInicio || b.fechaHora || '';
+          
+          if (!fechaA) return 1;
+          if (!fechaB) return -1;
+          
+          // Parsear fechas
+          let dA, dB;
+          if (fechaA.includes('T')) {
+            dA = new Date(fechaA);
+          } else {
+            dA = new Date(fechaA.replace(' ', 'T'));
+          }
+          
+          if (fechaB.includes('T')) {
+            dB = new Date(fechaB);
+          } else {
+            dB = new Date(fechaB.replace(' ', 'T'));
+          }
+          
+          // Más reciente primero (descendente)
+          return dB - dA;
+        });
+        
+        cont.innerHTML = filtrados.slice(0,30).map(r => buildHistorialItem(r)).join('');
+      } else {
+        cont.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>No hay registros del mes actual o anterior</div></div>';
+      }
+    } else {
+      cont.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>No hay registros aún</div></div>';
+    }
+  } catch(e) {
+    cont.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><div>No se pudo cargar el historial.<br>Verificá la conexión.</div></div>';
+  }
+}
+
+function buildHistorialItem(r) {
+  const esJornada = r.tipo === 'JORNADA';
+  const icon = esJornada ? '⏱' : '📌';
+  const clase = esJornada ? 'jornada' : 'novedad';
+  
+  // Helper para parsear fechas que pueden venir en varios formatos
+  function parseFecha(str) {
+    if (!str) return null;
+    // Si viene como timestamp ISO
+    if (str.includes('T')) return new Date(str);
+    // Si viene como "YYYY-MM-DD HH:MM:SS"
+    const d = new Date(str.replace(' ', 'T'));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  
+  if (esJornada) {
+    // JORNADA: mostrar fechas de inicio y fin si son diferentes
+    const dInicio = parseFecha(r.fechaHoraInicio);
+    if (!dInicio) return ''; // Skip si no se puede parsear
+    
+    const dFin = r.fechaHoraFin ? parseFecha(r.fechaHoraFin) : null;
+    const horaInicio = fmtHora(dInicio);
+    const horaFin = dFin ? fmtHora(dFin) : '—';
+    const dur = dFin ? calcDuracion(dInicio, dFin) : '';
+    
+    let displayText;
+    if (dFin) {
+      // Verificar si inicio y fin son el mismo día
+      const mismoDia = dInicio.getDate() === dFin.getDate() && 
+                       dInicio.getMonth() === dFin.getMonth() && 
+                       dInicio.getFullYear() === dFin.getFullYear();
+      
+      if (mismoDia) {
+        // Mismo día: "09/02 • 09:00 - 22:48"
+        const dia = String(dInicio.getDate()).padStart(2,'0');
+        const mes = String(dInicio.getMonth()+1).padStart(2,'0');
+        displayText = `${dia}/${mes} • ${horaInicio} - ${horaFin}`;
+      } else {
+        // Días diferentes: "09/02 09:00 - 10/02 22:48"
+        const diaIni = String(dInicio.getDate()).padStart(2,'0');
+        const mesIni = String(dInicio.getMonth()+1).padStart(2,'0');
+        const diaFin = String(dFin.getDate()).padStart(2,'0');
+        const mesFin = String(dFin.getMonth()+1).padStart(2,'0');
+        displayText = `${diaIni}/${mesIni} ${horaInicio} - ${diaFin}/${mesFin} ${horaFin}`;
+      }
+    } else {
+      // Sin fin: "09/02 • 09:00 - —"
+      const dia = String(dInicio.getDate()).padStart(2,'0');
+      const mes = String(dInicio.getMonth()+1).padStart(2,'0');
+      displayText = `${dia}/${mes} • ${horaInicio} - ${horaFin}`;
+    }
+    
+    return `<div class="history-item">
+      <div class="history-type ${clase}">${icon}</div>
+      <div class="history-body">
+        <div class="history-title" style="font-size:13px; line-height:1.4;">
+          ${displayText}
+          ${dur ? `<span class="badge badge-green" style="margin-left:6px;">${dur}</span>` : ''}
+        </div>
+        ${r.observaciones ? `<div class="history-desc" style="margin-top:4px;">${r.observaciones}</div>` : ''}
+      </div>
+    </div>`;
+  } else {
+    // NOVEDAD: dd/mm • descripción
+    const d = parseFecha(r.fechaHoraInicio);
+    let fechaStr = 'Sin fecha';
+    if (d) {
+      const dia = String(d.getDate()).padStart(2,'0');
+      const mes = String(d.getMonth()+1).padStart(2,'0');
+      fechaStr = `${dia}/${mes}`;
+    }
+    
+    return `<div class="history-item">
+      <div class="history-type ${clase}">${icon}</div>
+      <div class="history-body">
+        <div class="history-title" style="font-size:13px; line-height:1.4;">
+          ${fechaStr}
+        </div>
+        <div class="history-desc" style="margin-top:4px;">${r.descripcion || 'Sin descripción'}</div>
+      </div>
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  COMUNICACIÓN CON GOOGLE SHEETS
+// ═══════════════════════════════════════════
+async function enviarASheet(payload) {
+  try {
+    const resp = await fetch(STATE.sheetUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain' }, // Apps Script requiere esto para evitar preflight en algunos casos
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) { toast(data.error, 'error'); return false; }
+    return true;
+  } catch(e) {
+    toast('Error de conexión con el servidor', 'error');
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  UBICACIÓN ASYNC
+// ═══════════════════════════════════════════
+function pedirUbicacionAsync() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        STATE.ubicacion = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+        resolve();
+      },
+      () => resolve(),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  });
+}
+
+// ═══════════════════════════════════════════
+//  PERFIL
+// ═══════════════════════════════════════════
+
+function abrirPerfil() {
+  document.getElementById('input-editar-nombre').value = STATE.usuario || '';
+  actualizarBotonesTema();
+  document.getElementById('modal-perfil').classList.add('open');
+}
+
+function cambiarTema(tema) {
+  const root = document.documentElement;
+  if (tema === 'claro') {
+    root.classList.add('theme-claro');
+    localStorage.setItem('rj_tema', 'claro');
+  } else {
+    root.classList.remove('theme-claro');
+    localStorage.setItem('rj_tema', 'oscuro');
+  }
+  actualizarBotonesTema();
+}
+
+function actualizarBotonesTema() {
+  const temaActual = localStorage.getItem('rj_tema') || 'oscuro';
+  const btnOscuro = document.getElementById('btn-tema-oscuro');
+  const btnClaro = document.getElementById('btn-tema-claro');
+  
+  if (temaActual === 'claro') {
+    btnClaro.style.background = 'var(--accent)';
+    btnClaro.style.color = '#0d0f14';
+    btnClaro.style.borderColor = 'var(--accent)';
+    btnOscuro.style.background = 'var(--surface2)';
+    btnOscuro.style.color = 'var(--text)';
+    btnOscuro.style.borderColor = 'var(--border)';
+  } else {
+    btnOscuro.style.background = 'var(--accent)';
+    btnOscuro.style.color = '#0d0f14';
+    btnOscuro.style.borderColor = 'var(--accent)';
+    btnClaro.style.background = 'var(--surface2)';
+    btnClaro.style.color = 'var(--text)';
+    btnClaro.style.borderColor = 'var(--border)';
+  }
+}
+
+function aplicarTemaGuardado() {
+  const tema = localStorage.getItem('rj_tema') || 'oscuro';
+  if (tema === 'claro') {
+    document.documentElement.classList.add('theme-claro');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  MODALES
+// ═══════════════════════════════════════════
+function cerrarModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════
+let toastTimer = null;
+function toast(msg, tipo = 'success') {
+  const el = document.getElementById('toast');
+  const icons = { success: '✓', error: '✕', warn: '⚠' };
+  document.getElementById('toast-icon').textContent = icons[tipo] || '•';
+  document.getElementById('toast-msg').textContent = msg;
+  el.className = `toast ${tipo} show`;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+}
+
+function resetearApp() {
+  localStorage.clear();
+  location.reload();
+}
+
+function abrirConfirmacionReset() {
+  cerrarModal('modal-perfil');
+  document.getElementById('modal-confirmar-reset').classList.add('open');
+}
+
+function confirmarReset() {
+  resetearApp();
+}
+
+// ═══════════════════════════════════════════
+//  ARRANCAR
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  aplicarTemaGuardado();
+  document.getElementById('user-avatar').addEventListener('click', abrirPerfil);
+  document.getElementById('user-avatar').addEventListener('touchend', function(e) {
+    e.preventDefault();
+    abrirPerfil();
+  });
+  init();
+});
+</script>
+
+</body>
+</html>
