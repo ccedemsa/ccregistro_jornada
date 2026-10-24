@@ -100,6 +100,16 @@
   .badge.jor { color:var(--accent); border-color:rgba(0,229,160,.4); }
   .mapa { color:var(--accent); font-family:var(--font-mono); font-size:12px; text-decoration:none; }
   .mapa:hover { text-decoration:underline; }
+  .alta-form input[type="date"], .alta-form select, table.par select, table.par input[type="text"] { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; color:var(--text); font-family:var(--font-mono); font-size:14px; outline:none; color-scheme:dark; }
+  .alta-form input[type="date"] { width:100%; }
+  table.par input[type="text"] { width:100px; text-align:center; }
+  table.par select { min-width:150px; }
+  table.par td.fin { text-align:right; }
+  table.par tr.nuevo-tipo td { border-top:2px solid var(--border); }
+  .btn-x { background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--danger); width:34px; height:34px; cursor:pointer; font-size:15px; }
+  .btn-x:hover { border-color:var(--danger); }
+  .acciones-form { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .acciones-form .btn { margin-top:0; }
   .alta-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:18px; }
   .alta-form .campo { flex:1; min-width:220px; }
   .alta-form label { margin-top:0; }
@@ -234,10 +244,66 @@
       </div>
     </div>
     <div id="sec-parametros" class="hidden">
-      <div class="vacio"><b>Parámetros</b>Próximamente: horario normal, horas mínimas y porcentajes por día y rango horario.</div>
+      <div class="sec-head">
+        <div>
+          <h3>Parámetros</h3>
+          <p class="sub">Cómo se clasifican las horas trabajadas. Los cambios valen para los cálculos de ahora en adelante.</p>
+        </div>
+        <button class="btn btn-sec btn-sm" id="btn-par-refrescar">&#8635; Actualizar</button>
+      </div>
+      <div class="cargando hidden" id="par-cargando"><div class="spinner spinner-lg"></div></div>
+      <div id="par-contenido" class="hidden">
+        <div class="alta-form">
+          <div class="campo" style="max-width:260px;">
+            <label for="par-horas">Horas mínimas por día</label>
+            <input type="text" id="par-horas" inputmode="decimal" maxlength="5" style="text-transform:none;">
+          </div>
+        </div>
+        <table class="tabla par">
+          <thead><tr><th>Tipo de día</th><th>Desde</th><th>Hasta</th><th>Categoría</th><th></th></tr></thead>
+          <tbody id="par-tbody"></tbody>
+        </table>
+        <p class="sub" style="margin-top:10px;">Cada tipo de día tiene que cubrir de 00:00 a 24:00, sin huecos ni solapes. Formato de hora: HH:mm (el fin del día es 24:00). El feriado tiene prioridad sobre el día de la semana.</p>
+        <div class="msg" id="par-msg"></div>
+        <div class="acciones-form">
+          <button class="btn btn-sec btn-sm" id="btn-par-agregar" type="button">+ Agregar regla</button>
+          <button class="btn btn-sm" id="btn-par-guardar" type="button">Guardar parámetros</button>
+        </div>
+      </div>
     </div>
     <div id="sec-feriados" class="hidden">
-      <div class="vacio"><b>Feriados</b>Próximamente: alta y baja de feriados.</div>
+      <div class="sec-head">
+        <div>
+          <h3>Feriados</h3>
+          <p class="sub">Los feriados se liquidan con la regla FERIADO (ver Parámetros), sin importar el día de la semana.</p>
+        </div>
+        <button class="btn btn-sec btn-sm" id="btn-fer-refrescar">&#8635; Actualizar</button>
+      </div>
+      <form class="alta-form" id="form-fer-alta" autocomplete="off">
+        <div class="campo" style="flex:0 0 190px; min-width:170px;">
+          <label for="fer-fecha">Fecha</label>
+          <input type="date" id="fer-fecha">
+        </div>
+        <div class="campo">
+          <label for="fer-desc">Descripción</label>
+          <input type="text" id="fer-desc" placeholder="Ej: Día de la Independencia" maxlength="80" style="text-transform:none;">
+        </div>
+        <button type="submit" class="btn" id="btn-fer-alta">Agregar feriado</button>
+      </form>
+      <div class="filtros" style="padding:10px 16px;">
+        <div class="campo" style="min-width:120px;">
+          <label for="fer-anio">Año</label>
+          <select id="fer-anio"></select>
+        </div>
+      </div>
+      <div class="cargando hidden" id="fer-cargando"><div class="spinner spinner-lg"></div></div>
+      <div id="fer-tabla" class="hidden">
+        <table class="tabla">
+          <thead><tr><th style="width:200px;">Fecha</th><th>Descripción</th><th style="width:140px;">Acciones</th></tr></thead>
+          <tbody id="fer-tbody"></tbody>
+        </table>
+        <div class="vacio hidden" id="fer-vacio" style="margin-top:12px;">No hay feriados cargados para ese año.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -322,6 +388,7 @@ function cerrarLocal() {
   USUARIOS = [];
   REG_INICIADO = false;
   $('reg-lista').innerHTML = '';
+  PAR_DIRTY = false; PAR_REGLAS = []; FER_LISTA = [];
   SESION = { token: null, nombre: '', debeCambiar: false };
   $('login-clave').value = '';
   $('login-msg').textContent = '';
@@ -387,6 +454,8 @@ function irA(vista) {
   cerrarMenu();
   if (vista === 'usuarios') cargarUsuarios();
   if (vista === 'registros') iniciarRegistros();
+  if (vista === 'parametros') cargarParametros(false);
+  if (vista === 'feriados') cargarFeriados();
 }
 
 function cerrarMenu() { $('menu-config').classList.add('hidden'); }
@@ -583,6 +652,213 @@ function iniciarRegistros() {
   poblarMeses();                       // se rearma por si cambió el mes con la app abierta
   if (!REG_INICIADO) cargarRegistros();
 }
+
+// ─── parámetros ───
+const TIPOS_DIA = ['LUN-VIE', 'SABADO', 'DOMINGO', 'FERIADO'];
+const TIPO_ROTULO = { 'LUN-VIE': 'Lunes a viernes', 'SABADO': 'Sábado', 'DOMINGO': 'Domingo', 'FERIADO': 'Feriado' };
+const CAT_ROTULO = { 'NORMAL': 'Normal', '50': 'Extra 50%', '100': 'Extra 100%' };
+let PAR_REGLAS = [];
+let PAR_SIG = 1;
+let PAR_DIRTY = false;
+let PAR_CARGANDO = false;
+
+function parOrdenar() {
+  const h = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0; };
+  PAR_REGLAS.sort((a, b) => TIPOS_DIA.indexOf(a.tipoDia) - TIPOS_DIA.indexOf(b.tipoDia) || h(a.desde) - h(b.desde));
+}
+function parCargarDesde(r) {
+  $('par-horas').value = String(r.horasMinimas).replace('.', ',');
+  PAR_REGLAS = (r.reglas || []).map(x => ({ id: PAR_SIG++, tipoDia: x.tipoDia, desde: x.desde, hasta: x.hasta, categoria: x.categoria }));
+  parOrdenar();
+  PAR_DIRTY = false;
+  $('par-msg').textContent = '';
+  renderParametros();
+}
+
+function renderParametros() {
+  const tb = $('par-tbody');
+  tb.innerHTML = '';
+  let previo = null;
+  PAR_REGLAS.forEach(r => {
+    const tr = document.createElement('tr');
+    if (previo !== null && previo !== r.tipoDia) tr.className = 'nuevo-tipo';
+    previo = r.tipoDia;
+
+    const tdT = document.createElement('td');
+    const sT = document.createElement('select'); sT.dataset.id = r.id; sT.dataset.campo = 'tipoDia';
+    TIPOS_DIA.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = TIPO_ROTULO[t]; sT.appendChild(o); });
+    sT.value = r.tipoDia; tdT.appendChild(sT); tr.appendChild(tdT);
+
+    ['desde', 'hasta'].forEach(c => {
+      const td = document.createElement('td');
+      const i = document.createElement('input'); i.type = 'text'; i.maxLength = 5; i.placeholder = 'HH:mm';
+      i.dataset.id = r.id; i.dataset.campo = c; i.value = r[c]; i.autocomplete = 'off';
+      td.appendChild(i); tr.appendChild(td);
+    });
+
+    const tdC = document.createElement('td');
+    const sC = document.createElement('select'); sC.dataset.id = r.id; sC.dataset.campo = 'categoria';
+    Object.keys(CAT_ROTULO).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = CAT_ROTULO[c]; sC.appendChild(o); });
+    sC.value = r.categoria; tdC.appendChild(sC); tr.appendChild(tdC);
+
+    const tdX = document.createElement('td'); tdX.className = 'fin';
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-x'; x.dataset.id = r.id; x.dataset.accion = 'quitar';
+    x.title = 'Quitar regla'; x.textContent = '✕'; tdX.appendChild(x); tr.appendChild(tdX);
+    tb.appendChild(tr);
+  });
+}
+
+$('par-tbody').addEventListener('input', ev => {
+  const el = ev.target;
+  const r = PAR_REGLAS.find(x => String(x.id) === el.dataset.id);
+  if (!r) return;
+  r[el.dataset.campo] = el.value;
+  PAR_DIRTY = true;
+});
+$('par-tbody').addEventListener('change', ev => {
+  const el = ev.target;
+  const r = PAR_REGLAS.find(x => String(x.id) === el.dataset.id);
+  if (!r) return;
+  r[el.dataset.campo] = el.value;
+  PAR_DIRTY = true;
+});
+$('par-tbody').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-accion="quitar"]');
+  if (!b) return;
+  PAR_REGLAS = PAR_REGLAS.filter(x => String(x.id) !== b.dataset.id);
+  PAR_DIRTY = true;
+  renderParametros();
+});
+$('par-horas').addEventListener('input', () => { PAR_DIRTY = true; });
+
+$('btn-par-agregar').addEventListener('click', () => {
+  const ult = PAR_REGLAS[PAR_REGLAS.length - 1];
+  PAR_REGLAS.push({ id: PAR_SIG++, tipoDia: ult ? ult.tipoDia : 'LUN-VIE', desde: '', hasta: '', categoria: 'NORMAL' });
+  PAR_DIRTY = true;
+  renderParametros();
+});
+
+async function cargarParametros(forzar) {
+  if (PAR_CARGANDO) return;
+  if (!forzar && PAR_DIRTY) return;               // hay cambios sin guardar: no se pisan al volver a la pantalla
+  PAR_CARGANDO = true;
+  $('par-cargando').classList.remove('hidden');
+  $('par-contenido').classList.add('hidden');
+  try {
+    const r = await llamarGestor('gestor_parametros_leer');
+    if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+    parCargarDesde(r);
+    $('par-contenido').classList.remove('hidden');
+  } finally {
+    PAR_CARGANDO = false;
+    $('par-cargando').classList.add('hidden');
+  }
+}
+
+$('btn-par-refrescar').addEventListener('click', async () => {
+  if (PAR_DIRTY && !confirm('Hay cambios sin guardar. ¿Descartarlos y volver a cargar los parámetros?')) return;
+  const btn = $('btn-par-refrescar');
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Actualizando...';
+  try { await cargarParametros(true); }
+  finally { btn.disabled = false; btn.innerHTML = original; }
+});
+
+$('btn-par-guardar').addEventListener('click', async () => {
+  $('par-msg').textContent = '';
+  const payload = { horasMinimas: $('par-horas').value, reglas: PAR_REGLAS.map(r => ({ tipoDia: r.tipoDia, desde: r.desde, hasta: r.hasta, categoria: r.categoria })) };
+  const r = await conSpinner($('btn-par-guardar'), 'Guardando...', () => llamarGestor('gestor_parametros_guardar', payload));
+  if (r.error) { if (SESION.token) { $('par-msg').textContent = r.error; toast('No se guardó: ' + r.error, 'error'); } return; }
+  parCargarDesde(r);
+  toast('Parámetros guardados');
+});
+
+// ─── feriados ───
+let FER_LISTA = [];
+let FER_CARGANDO = false;
+
+function fmtFechaISO(iso) {          // '2026-10-12' -> 'Lun 12/10/2026'
+  const [a, m, d] = iso.split('-').map(Number);
+  const dia = new Date(a, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
+  return dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + a;
+}
+
+function renderFeriados() {
+  // años disponibles: los que tienen feriados + el actual
+  const anioHoy = String(new Date().getFullYear());
+  const anios = Array.from(new Set(FER_LISTA.map(f => f.fecha.substring(0, 4)).concat([anioHoy]))).sort().reverse();
+  const sel = $('fer-anio');
+  const previo = sel.value || anioHoy;
+  sel.innerHTML = '';
+  anios.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+  sel.value = anios.indexOf(previo) >= 0 ? previo : anioHoy;
+
+  const tb = $('fer-tbody');
+  tb.innerHTML = '';
+  const lista = FER_LISTA.filter(f => f.fecha.substring(0, 4) === sel.value);
+  $('fer-vacio').classList.toggle('hidden', lista.length > 0);
+  lista.forEach(f => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.className = 'mono'; td1.textContent = fmtFechaISO(f.fecha);
+    const td2 = document.createElement('td'); td2.className = 'nombre'; td2.textContent = f.descripcion;
+    const td3 = document.createElement('td');
+    const b = document.createElement('button'); b.className = 'btn btn-sec btn-sm'; b.dataset.fecha = f.fecha; b.dataset.accion = 'baja'; b.textContent = 'Eliminar';
+    td3.appendChild(b);
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tb.appendChild(tr);
+  });
+}
+
+async function cargarFeriados() {
+  if (FER_CARGANDO) return;
+  FER_CARGANDO = true;
+  $('fer-cargando').classList.remove('hidden');
+  $('fer-tabla').classList.add('hidden');
+  try {
+    const r = await llamarGestor('gestor_feriados_listar');
+    if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+    FER_LISTA = r.feriados || [];
+    $('fer-tabla').classList.remove('hidden');
+    renderFeriados();
+  } finally {
+    FER_CARGANDO = false;
+    $('fer-cargando').classList.add('hidden');
+  }
+}
+
+$('btn-fer-refrescar').addEventListener('click', async () => {
+  const btn = $('btn-fer-refrescar');
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Actualizando...';
+  try { await cargarFeriados(); }
+  finally { btn.disabled = false; btn.innerHTML = original; }
+});
+$('fer-anio').addEventListener('change', renderFeriados);
+
+$('form-fer-alta').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const fecha = $('fer-fecha').value, descripcion = $('fer-desc').value.trim();
+  if (!fecha) { toast('Elegí la fecha del feriado', 'error'); return; }
+  if (!descripcion) { toast('Ingresá la descripción del feriado', 'error'); return; }
+  const r = await conSpinner($('btn-fer-alta'), 'Agregando...', () => llamarGestor('gestor_feriado_alta', { fecha, descripcion }));
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+  FER_LISTA = r.feriados;
+  $('fer-anio').value = fecha.substring(0, 4);
+  renderFeriados();
+  $('fer-fecha').value = ''; $('fer-desc').value = '';
+  toast('Feriado agregado');
+});
+
+$('fer-tbody').addEventListener('click', async ev => {
+  const btn = ev.target.closest('button[data-accion="baja"]');
+  if (!btn) return;
+  const f = FER_LISTA.find(x => x.fecha === btn.dataset.fecha);
+  if (!f || !confirm('¿Eliminar el feriado del ' + fmtFechaISO(f.fecha) + ' (' + f.descripcion + ')?')) return;
+  document.querySelectorAll('#fer-tbody button').forEach(b => b.disabled = true);
+  const r = await conSpinner(btn, 'Eliminando...', () => llamarGestor('gestor_feriado_baja', { fecha: f.fecha }));
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); renderFeriados(); return; }
+  FER_LISTA = r.feriados; renderFeriados();
+  toast('Feriado eliminado');
+});
 
 // ─── usuarios (empleados) ───
 let USUARIOS = [];
