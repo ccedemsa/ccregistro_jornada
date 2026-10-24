@@ -1482,6 +1482,7 @@ async function sincronizarEstado(opts) {
   _syncEnCurso = true;
   _syncUltimo = Date.now();
   const refInicial = STATE.jornadaActiva ? STATE.jornadaActiva.rowId : null;
+  const refInicioMs = STATE.jornadaActiva ? new Date(STATE.jornadaActiva.inicio).getTime() : null;
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), 15000);
   try {
@@ -1495,7 +1496,16 @@ async function sincronizarEstado(opts) {
     if (actual !== refInicial) return true;
 
     const despues = data.abierta ? data.rowId : null;
-    if (actual === despues) return true;          // sin cambios: no se repinta nada
+    if (actual === despues) {
+      // Misma jornada: si la hora de inicio cambió en el Sheet, se adopta la del servidor
+      if (data.abierta && data.inicio && new Date(data.inicio).getTime() !== refInicioMs) {
+        STATE.jornadaActiva = { rowId: data.rowId, inicio: data.inicio, inicioLoc: data.ubicacionInicio };
+        localStorage.setItem('rj_jornada_activa', JSON.stringify(STATE.jornadaActiva));
+        toast('La jornada se actualizó según el Sheet.', 'warn');
+        actualizarUIJornada();
+      }
+      return true;                                // sin cambios: no se repinta nada
+    }
 
     if (data.abierta) {
       STATE.jornadaActiva = { rowId: data.rowId, inicio: data.inicio, inicioLoc: data.ubicacionInicio };
