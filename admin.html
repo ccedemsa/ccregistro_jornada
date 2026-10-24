@@ -142,7 +142,7 @@
   table.tabla tr.ausente s { opacity:.7; }
   table.tabla tr.sin-reg td { color:var(--muted); }
   table.tabla tr.sin-reg td.nombre { font-weight:600; }
-  #sec-informe table.tabla.fija th { color:var(--warn); }
+  table.tabla.fija th { color:var(--warn); }
   table.tabla tr:not(.sin-reg):not(.ausente) td.finde { color:var(--warn); }
   .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
 
@@ -641,7 +641,8 @@ function renderRegistros(regs, truncado) {
     tr.className = clases.join(' ');
     diaPrevio = dia;
 
-    celda(tr, fmtDiaCorto(dia), 'num');
+    const tdF0 = celda(tr, fmtDiaCorto(dia), r.tipoDia && r.tipoDia !== 'LUN-VIE' ? 'num finde' : 'num');   // sábado, domingo y feriado en naranja
+    if (r.feriado) tdF0.title = r.feriado;
     celda(tr, r.usuario, 'nombre');
     const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov')); tr.appendChild(tdT);
     if (r.tipo === 'JORNADA') {
