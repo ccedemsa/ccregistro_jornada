@@ -7,13 +7,23 @@
 <title>Gestión de Jornadas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script>
+  try { if (localStorage.getItem('gj_tema') === 'claro') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg:#0d0f14; --surface:#161a22; --surface2:#1e2330; --border:#2a3040;
     --accent:#00e5a0; --accent2:#ff6b35; --text:#e8ecf4; --muted:#6b7589;
     --danger:#ff4757; --warn:#ffa502;
+    --rojo:#ff6b7a; --violeta:var(--violeta); --azul:#4a9eff; --th:#ffa502;
     --font-display:'Syne',sans-serif; --font-mono:'DM Mono',monospace;
+  }
+  :root[data-theme="light"] {
+    --bg:#f2f4f8; --surface:#ffffff; --surface2:#eceff5; --border:#cfd5e1;
+    --accent:#008a63; --accent2:#d9541e; --text:#1b2130; --muted:#5d6678;
+    --danger:#d92d3f; --warn:#b36b00;
+    --rojo:#d92d3f; --violeta:#7a4fd6; --azul:#1f6fd1; --th:#b36b00;
   }
   html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font-display); -webkit-font-smoothing:antialiased; }
   .hidden { display:none !important; }
@@ -97,7 +107,7 @@
   table.tabla td.num { font-family:var(--font-mono); white-space:nowrap; }
   table.tabla tr.abierta td { background:rgba(255,165,2,.14); }
   .badge.warn { color:var(--warn); border-color:rgba(255,165,2,.5); }
-  .badge.nov { color:#4a9eff; border-color:rgba(74,158,255,.4); }
+  .badge.nov { color:var(--azul); border-color:rgba(74,158,255,.4); }
   .badge.jor { color:var(--accent); border-color:rgba(0,229,160,.4); }
   .mapa { color:var(--accent); font-family:var(--font-mono); font-size:12px; text-decoration:none; }
   .mapa:hover { text-decoration:underline; }
@@ -152,25 +162,30 @@
   table.tabla.compacta .badge { padding:1px 8px; font-size:10px; }
   .btn-icono { display:inline-flex; align-items:center; justify-content:center; width:32px; height:26px; padding:0; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; margin:0 !important; }
   .btn-icono:hover { color:var(--warn); border-color:var(--warn); }
-  .btn-icono.activo { color:#b18cff; border-color:rgba(177,140,255,.5); }
+  .btn-icono.activo { color:var(--violeta); border-color:rgba(177,140,255,.5); }
   .btn-icono.activo:hover { color:var(--text); border-color:var(--text); }
   .btn-icono:disabled { opacity:.6; cursor:not-allowed; }
   .btn-icono .spinner { width:12px; height:12px; border-color:var(--border); border-top-color:var(--accent); }
   table.tabla s.nc { color:var(--muted); opacity:.85; }
   table.tabla .aut-ok { color:var(--accent); font-weight:600; }
   table.tabla .sin-aut { color:var(--muted); }
-  table.tabla .dif { color:#ff6b7a; white-space:nowrap; }
+  table.tabla .dif { color:var(--rojo); white-space:nowrap; }
   table.tabla .dif s { opacity:.75; }
   table.tabla tr.cambio td { background:rgba(255,71,87,.10); }
-  .badge.cambio { color:#ff6b7a; border-color:rgba(255,71,87,.5); }
-  .chip.danger { border-color:rgba(255,71,87,.5); color:#ff6b7a; }
-  .chip.danger b { color:#ff6b7a; }
+  .badge.cambio { color:var(--rojo); border-color:rgba(255,71,87,.5); }
+  .chip.danger { border-color:rgba(255,71,87,.5); color:var(--rojo); }
+  .chip.danger b { color:var(--rojo); }
   .aut-cel { display:inline-flex; align-items:center; gap:6px; }
   .aut-cel input[type="checkbox"] { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; }
   table.tabla .aut-cel input.aut-min { width:64px; padding:3px 6px; font-size:12.5px; text-align:center; border-radius:6px; }
   table.tabla .aut-cel input.aut-min:disabled { opacity:.45; }
   table.tabla .aut-cel input.aut-min.error { border-color:var(--danger); }
-  .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
+  .badge.aus { color:var(--violeta); border-color:rgba(177,140,255,.45); }
+
+  .tema { position:relative; width:42px; height:22px; border-radius:11px; border:1px solid var(--border); background:var(--surface2); cursor:pointer; padding:0; flex:none; }
+  .tema::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:var(--text); transition:transform .2s; }
+  :root[data-theme="light"] .tema::after { transform:translateX(20px); }
+  .tema:focus-visible { outline:2px solid var(--muted); outline-offset:2px; }
 
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
   .toast.show { opacity:1; }
@@ -223,6 +238,7 @@
     </div>
     <div class="espacio"></div>
     <span class="who" id="app-quien"></span>
+    <button class="tema" id="btn-tema" type="button" role="switch" aria-checked="false" aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro"></button>
     <div class="engr-wrap">
       <button class="engr" id="btn-engranaje" title="Configuración" aria-label="Configuración">&#9881;</button>
       <div class="menu hidden" id="menu-config">
@@ -565,6 +581,19 @@ function irA(vista) {
 }
 
 function cerrarMenu() { $('menu-config').classList.add('hidden'); }
+
+// Tema claro / oscuro (se recuerda en este navegador)
+function aplicarTema(claro) {
+  if (claro) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
+  const b = $('btn-tema'); if (b) b.setAttribute('aria-checked', claro ? 'true' : 'false');
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', claro ? '#f2f4f8' : '#0d0f14');
+}
+aplicarTema(document.documentElement.getAttribute('data-theme') === 'light');
+$('btn-tema').addEventListener('click', () => {
+  const claro = document.documentElement.getAttribute('data-theme') !== 'light';
+  aplicarTema(claro);
+  try { localStorage.setItem('gj_tema', claro ? 'claro' : 'oscuro'); } catch (e) {}
+});
 
 $('btn-engranaje').addEventListener('click', ev => {
   ev.stopPropagation();
