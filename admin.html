@@ -144,6 +144,17 @@
   table.tabla tr.sin-reg td.nombre { font-weight:600; }
   table.tabla.fija th { color:var(--warn); }
   table.tabla tr:not(.sin-reg):not(.ausente) td.finde { color:var(--warn); }
+  /* ─── Informe: filas compactas y botón de ausencia con ícono ─── */
+  table.tabla.compacta td { padding:4px 14px; font-size:13px; }
+  table.tabla.compacta th { padding:9px 14px; }
+  table.tabla.compacta td.acc { padding:3px 14px; }
+  table.tabla.compacta .badge { padding:1px 8px; font-size:10px; }
+  .btn-icono { display:inline-flex; align-items:center; justify-content:center; width:32px; height:26px; padding:0; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; margin:0 !important; }
+  .btn-icono:hover { color:var(--warn); border-color:var(--warn); }
+  .btn-icono.activo { color:#b18cff; border-color:rgba(177,140,255,.5); }
+  .btn-icono.activo:hover { color:var(--text); border-color:var(--text); }
+  .btn-icono:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-icono .spinner { width:12px; height:12px; border-color:var(--border); border-top-color:var(--accent); }
   .badge.aus { color:#b18cff; border-color:rgba(177,140,255,.45); }
 
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
@@ -721,6 +732,8 @@ function fmtHM(min) {                 // 510 -> '8:30'; 0 -> '—'
 const TIPO_DIA_ROT = { 'LUN-VIE': 'Lun a vie', 'SABADO': 'Sábado', 'DOMINGO': 'Domingo', 'FERIADO': 'Feriado' };
 
 let INF_FILTRO_USUARIO = '';
+// empleado tachado (ícono del botón de ausencia)
+const ICONO_AUSENTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
 
 function renderInforme(r) {
   const cont = $('inf-lista');
@@ -760,7 +773,7 @@ function renderInforme(r) {
   // detalle: una fila por empleado y por día del mes
   const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:24px 0 10px;'; h5.textContent = 'Detalle por día'; cont.appendChild(h5);
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
-  const tb = document.createElement('table'); tb.className = 'tabla fija';
+  const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
   tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Ausencia</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
@@ -797,13 +810,13 @@ function renderInforme(r) {
 
     const tdA = document.createElement('td'); tdA.className = 'acc';
     if (d.ausente) {
-      const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn btn-sec btn-sm';
+      const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn-icono activo';
       bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
-      bq.title = d.ausente.motivo; bq.textContent = 'Quitar ausente'; tdA.appendChild(bq);
+      bq.title = 'Quitar ausente (' + d.ausente.motivo + ')'; bq.setAttribute('aria-label', 'Quitar ausente'); bq.innerHTML = ICONO_AUSENTE; tdA.appendChild(bq);
     } else if (!d.futuro && !d.fueraDeMes) {
-      const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn btn-sec btn-sm';
+      const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
       bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
-      bm.textContent = 'Marcar ausente'; tdA.appendChild(bm);
+      bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
     }
     tr.appendChild(tdA);
     body.appendChild(tr);
@@ -833,7 +846,7 @@ $('inf-lista').addEventListener('click', async ev => {
     return;
   }
   if (!confirm('¿Quitar la ausencia de ' + usuario + ' del ' + fmtDiaCorto(fecha) + '? Las horas registradas ese día vuelven a contar.')) return;
-  await conSpinner(b, 'Quitando...', async () => {
+  await conSpinner(b, '', async () => {
     const r = await llamarGestor('gestor_ausencia_quitar', { usuario, fecha, filtroUsuario: $('inf-usuario').value });
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     mostrarInformeActualizado(r);
