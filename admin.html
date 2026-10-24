@@ -86,10 +86,11 @@
   .chip.warn b { color:var(--warn); }
   .scroll-x { overflow-x:auto; }
   table.tabla.reg { table-layout:fixed; min-width:1050px; }
-  table.tabla.reg th:nth-child(1) { width:13%; } table.tabla.reg th:nth-child(2) { width:25%; }
-  table.tabla.reg th:nth-child(3) { width:8%; }  table.tabla.reg th:nth-child(4) { width:7%; }
-  table.tabla.reg th:nth-child(5) { width:13%; } table.tabla.reg th:nth-child(6) { width:8%; }
-  table.tabla.reg th:nth-child(7) { width:18%; } table.tabla.reg th:nth-child(8) { width:8%; }
+  table.tabla.reg th:nth-child(1) { width:12%; } table.tabla.reg th:nth-child(2) { width:22%; }
+  table.tabla.reg th:nth-child(3) { width:11%; }  table.tabla.reg th:nth-child(4) { width:7%; }
+  table.tabla.reg th:nth-child(5) { width:12%; } table.tabla.reg th:nth-child(6) { width:8%; }
+  table.tabla.reg th:nth-child(7) { width:15%; } table.tabla.reg th:nth-child(8) { width:8%; }
+  table.tabla.reg th:nth-child(9) { width:5%; }
   table.tabla.reg td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   table.tabla.reg tr.nuevo-dia td { border-top:2px solid var(--border); }
   table.tabla td.det { color:var(--muted); font-family:var(--font-mono); font-size:12px; max-width:340px; }
@@ -373,6 +374,31 @@
   </div>
 </div>
 
+<!-- MODAL: editar jornada -->
+<div class="modal-fondo hidden" id="modal-editar">
+  <div class="modal">
+    <h3>Editar jornada</h3>
+    <p class="sub" id="ed-det"></p>
+    <label>Inicio</label>
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:10px;">
+      <input type="text" id="ed-ini-f" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+      <input type="text" id="ed-ini-h" placeholder="HH:mm" inputmode="numeric" maxlength="5" autocomplete="off">
+    </div>
+    <label id="ed-fin-rot">Fin</label>
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:10px;">
+      <input type="text" id="ed-fin-f" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+      <input type="text" id="ed-fin-h" placeholder="HH:mm" inputmode="numeric" maxlength="5" autocomplete="off">
+    </div>
+    <label for="ed-motivo">Motivo (obligatorio)</label>
+    <input type="text" id="ed-motivo" maxlength="200" autocomplete="off" placeholder="Ej: Olvidó cerrar la jornada">
+    <div class="msg" id="ed-msg"></div>
+    <div class="acciones-form">
+      <button type="button" class="btn btn-sm" id="ed-ok">Guardar cambios</button>
+      <button type="button" class="btn btn-sec btn-sm" id="ed-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -544,6 +570,8 @@ async function llamarGestor(accion, extra) {
 
 // ─── registros diarios ───
 let REG_CARGANDO = false;
+let REG_POR_ID = {};          // rowId -> registro (para el editor)
+const ICONO_LAPIZ = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 let REG_INICIADO = false;
 let REG_PENDIENTE = false;
 
@@ -617,6 +645,7 @@ function celdaUbicacion(tr, ubic) {
 function renderRegistros(regs, truncado) {
   const cont = $('reg-lista');
   cont.innerHTML = '';
+  REG_POR_ID = {};
   const jor = regs.filter(r => r.tipo === 'JORNADA').length;
   const nov = regs.length - jor;
   const abiertas = regs.filter(r => r.abierta).length;
@@ -640,7 +669,7 @@ function renderRegistros(regs, truncado) {
   // una sola tabla: un registro por fila (ya vienen del más nuevo al más viejo)
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla reg fija';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Detalle</th><th>Ubicación</th><th></th></tr></thead>';
   const body = document.createElement('tbody');
   let diaPrevio = null;
   regs.forEach(r => {
@@ -655,7 +684,15 @@ function renderRegistros(regs, truncado) {
     const tdF0 = celda(tr, fmtDiaCorto(dia), r.tipoDia && r.tipoDia !== 'LUN-VIE' ? 'num finde' : 'num');   // sábado, domingo y feriado en naranja
     if (r.feriado) tdF0.title = r.feriado;
     celda(tr, r.usuario, 'nombre');
-    const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov')); tr.appendChild(tdT);
+    REG_POR_ID[r.rowId] = r;
+    const tdT = document.createElement('td'); tdT.appendChild(badge(r.tipo === 'JORNADA' ? 'Jornada' : 'Novedad', r.tipo === 'JORNADA' ? 'jor' : 'nov'));
+    if (r.editado) {
+      const e = r.editado;
+      const orig = e.inicioOriginal ? ' Original: ' + e.inicioOriginal.substring(8, 10) + '/' + e.inicioOriginal.substring(5, 7) + ' ' + hhmm(e.inicioOriginal) + ' a ' + (e.finOriginal ? hhmm(e.finOriginal) : 'sin cerrar') + '.' : '';
+      const be = badge('Editado', 'aus'); be.title = 'Editado por ' + e.gestor + ' (' + e.cuando + ')' + (e.veces > 1 ? ', ' + e.veces + ' veces' : '') + '. Motivo: ' + e.motivo + '.' + orig;
+      tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(be);
+    }
+    tr.appendChild(tdT);
     if (r.tipo === 'JORNADA') {
       celda(tr, hhmm(r.inicio), 'num');
       const tdF = document.createElement('td'); tdF.className = 'num';
@@ -672,6 +709,13 @@ function renderRegistros(regs, truncado) {
       const tdD = celda(tr, r.descripcion || '', 'det'); tdD.title = r.descripcion || '';
     }
     celdaUbicacion(tr, r.ubicacionInicio);
+    const tdE = document.createElement('td'); tdE.className = 'acc';
+    if (r.tipo === 'JORNADA') {
+      const be = document.createElement('button'); be.type = 'button'; be.className = 'btn-icono';
+      be.dataset.editarId = r.rowId; be.title = r.abierta ? 'Completar o corregir jornada' : 'Corregir jornada'; be.setAttribute('aria-label', be.title);
+      be.innerHTML = ICONO_LAPIZ; tdE.appendChild(be);
+    }
+    tr.appendChild(tdE);
     body.appendChild(tr);
   });
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
@@ -714,6 +758,79 @@ async function cargarRegistros() {
 $('form-reg').addEventListener('submit', ev => { ev.preventDefault(); cargarRegistros(); });
 $('reg-mes').addEventListener('change', cargarRegistros);
 $('reg-usuario').addEventListener('change', cargarRegistros);
+
+
+// ─── editar jornada (gestor) ───
+let ED_ID = null;
+function mascaraFecha(el) {
+  el.addEventListener('input', () => {
+    const n = el.value.replace(/\D/g, '').substring(0, 8);
+    let t = n.substring(0, 2);
+    if (n.length > 2) t += '/' + n.substring(2, 4);
+    if (n.length > 4) t += '/' + n.substring(4);
+    el.value = t;
+  });
+}
+function mascaraHora(el) {
+  el.addEventListener('input', () => {
+    const n = el.value.replace(/\D/g, '').substring(0, 4);
+    el.value = n.length > 2 ? n.substring(0, 2) + ':' + n.substring(2) : n;
+  });
+}
+['ed-ini-f', 'ed-fin-f'].forEach(i => mascaraFecha($(i)));
+['ed-ini-h', 'ed-fin-h'].forEach(i => mascaraHora($(i)));
+
+function partesTs(ts) {                // 'yyyy-MM-dd HH:mm:ss' -> { f: 'dd/mm/aaaa', h: 'HH:mm' }
+  if (!ts) return { f: '', h: '' };
+  return { f: ts.substring(8, 10) + '/' + ts.substring(5, 7) + '/' + ts.substring(0, 4), h: ts.substring(11, 16) };
+}
+function juntarTs(fTxt, hTxt) {        // -> 'yyyy-MM-dd HH:mm' o '' si no es válido
+  const f = fechaDDMMAAAA(fTxt);
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hTxt || '').trim());
+  if (!f || !m || parseInt(m[1], 10) > 23 || parseInt(m[2], 10) > 59) return '';
+  return f + ' ' + String(parseInt(m[1], 10)).padStart(2, '0') + ':' + m[2];
+}
+function cerrarModalEditar() { $('modal-editar').classList.add('hidden'); ED_ID = null; }
+
+$('reg-lista').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-editar-id]');
+  if (!b) return;
+  const r = REG_POR_ID[b.dataset.editarId];
+  if (!r) return;
+  ED_ID = r.rowId;
+  const pi = partesTs(r.inicio), pf = partesTs(r.fin);
+  $('ed-det').textContent = r.usuario + (r.abierta ? ' · jornada sin cerrar' : ' · jornada cerrada') + '. Los cambios quedan auditados.';
+  $('ed-ini-f').value = pi.f; $('ed-ini-h').value = pi.h;
+  $('ed-fin-f').value = pf.f; $('ed-fin-h').value = pf.h;
+  $('ed-fin-rot').textContent = r.abierta ? 'Fin (completalo para cerrar la jornada)' : 'Fin';
+  $('ed-motivo').value = ''; $('ed-msg').textContent = '';
+  $('modal-editar').classList.remove('hidden');
+  setTimeout(() => $(r.abierta ? 'ed-fin-f' : 'ed-ini-f').focus(), 50);
+});
+$('ed-cancel').addEventListener('click', cerrarModalEditar);
+$('modal-editar').addEventListener('click', ev => { if (ev.target === $('modal-editar')) cerrarModalEditar(); });
+$('ed-ok').addEventListener('click', async () => {
+  if (!ED_ID) return;
+  const msg = $('ed-msg'); msg.textContent = '';
+  const inicio = juntarTs($('ed-ini-f').value, $('ed-ini-h').value);
+  if (!inicio) { msg.textContent = 'Revisá el inicio: fecha dd/mm/aaaa y hora HH:mm'; return; }
+  let fin = '';
+  if ($('ed-fin-f').value.trim() || $('ed-fin-h').value.trim()) {
+    fin = juntarTs($('ed-fin-f').value, $('ed-fin-h').value);
+    if (!fin) { msg.textContent = 'Revisá el fin: fecha dd/mm/aaaa y hora HH:mm'; return; }
+  }
+  const motivo = $('ed-motivo').value.trim();
+  if (!motivo) { msg.textContent = 'El motivo es obligatorio'; return; }
+  const id = ED_ID;
+  await conSpinner($('ed-ok'), 'Guardando...', async () => {
+    const r = await llamarGestor('gestor_jornada_editar', { rowId: id, inicio, fin, motivo });
+    if (r.error) { if (SESION.token) msg.textContent = r.error; return; }
+    cerrarModalEditar();
+    toast('Jornada actualizada');
+    REG_INICIADO = false;
+    cargarRegistros();
+  });
+});
 
 function iniciarRegistros() {
   poblarMeses();                       // se rearma por si cambió el mes con la app abierta
@@ -794,6 +911,7 @@ function renderInforme(r) {
     if (d.tipoDia !== 'LUN-VIE') tdT.className = 'finde';                 // sábado, domingo y feriado: naranja (si el día no está atenuado)
     if (d.feriado) tdT.title = d.feriado;
     d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
+    if (d.editado) { tdT.appendChild(document.createTextNode(' ')); const be = badge('Editado', 'aus'); be.title = 'Alguna jornada de este día fue editada por el gestor (ver Registros diarios)'; tdT.appendChild(be); }
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     tr.appendChild(tdT);
 
