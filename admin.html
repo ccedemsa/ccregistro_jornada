@@ -307,7 +307,7 @@
       <form class="alta-form" id="form-fer-alta" autocomplete="off">
         <div class="campo" style="flex:0 0 190px; min-width:170px;">
           <label for="fer-fecha">Fecha</label>
-          <input type="date" id="fer-fecha">
+          <input type="text" id="fer-fecha" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
         </div>
         <div class="campo">
           <label for="fer-desc">Descripción</label>
@@ -978,10 +978,28 @@ $('btn-fer-refrescar').addEventListener('click', async () => {
 });
 $('fer-anio').addEventListener('change', renderFeriados);
 
+// Fecha escrita como dd/mm/aaaa -> 'aaaa-mm-dd' (o '' si no es una fecha real)
+function fechaDDMMAAAA(t) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(t || '').trim());
+  if (!m) return '';
+  const d = parseInt(m[1], 10), mes = parseInt(m[2], 10), a = parseInt(m[3], 10);
+  const f = new Date(Date.UTC(a, mes - 1, d));
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== mes - 1 || f.getUTCDate() !== d) return '';
+  return a + '-' + String(mes).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+// mientras se escribe: solo números y las barras se ponen solas (12102026 -> 12/10/2026)
+$('fer-fecha').addEventListener('input', () => {
+  const n = $('fer-fecha').value.replace(/\D/g, '').substring(0, 8);
+  let t = n.substring(0, 2);
+  if (n.length > 2) t += '/' + n.substring(2, 4);
+  if (n.length > 4) t += '/' + n.substring(4);
+  $('fer-fecha').value = t;
+});
+
 $('form-fer-alta').addEventListener('submit', async ev => {
   ev.preventDefault();
-  const fecha = $('fer-fecha').value, descripcion = $('fer-desc').value.trim();
-  if (!fecha) { toast('Elegí la fecha del feriado', 'error'); return; }
+  const fecha = fechaDDMMAAAA($('fer-fecha').value), descripcion = $('fer-desc').value.trim();
+  if (!fecha) { toast('Ingresá la fecha del feriado como dd/mm/aaaa (por ejemplo 12/10/2026)', 'error'); return; }
   if (!descripcion) { toast('Ingresá la descripción del feriado', 'error'); return; }
   const r = await conSpinner($('btn-fer-alta'), 'Agregando...', () => llamarGestor('gestor_feriado_alta', { fecha, descripcion }));
   if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
@@ -989,7 +1007,7 @@ $('form-fer-alta').addEventListener('submit', async ev => {
   $('fer-anio').value = fecha.substring(0, 4);
   renderFeriados();
   $('fer-fecha').value = ''; $('fer-desc').value = '';
-  toast('Feriado agregado');
+  toast('Feriado agregado: ' + fmtDiaCorto(fecha));
 });
 
 $('fer-tbody').addEventListener('click', async ev => {
