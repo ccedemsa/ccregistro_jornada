@@ -503,7 +503,7 @@
     <div style="width:100%; display:flex; flex-direction:column; gap:12px;">
       <div class="form-group">
         <label class="form-label">Tu nombre completo</label>
-        <input type="text" id="input-nombre" placeholder="Ej: Juan García" maxlength="60">
+        <input type="text" id="input-nombre" placeholder="Ej: JUAN GARCÍA" maxlength="60" autocapitalize="characters" style="text-transform:uppercase;">
       </div>
       <button class="btn btn-primary" id="btn-guardar-config">
         Comenzar →
@@ -796,7 +796,7 @@ function switchTab(tab) {
 //  ONBOARDING
 // ═══════════════════════════════════════════
 document.getElementById('btn-guardar-config').addEventListener('click', async () => {
-  const nombre = document.getElementById('input-nombre').value.trim();
+  const nombre = document.getElementById('input-nombre').value.trim().replace(/\s+/g, ' ').toUpperCase();
   if (!nombre) { toast('Ingresá tu nombre', 'error'); return; }
   
   const btn = document.getElementById('btn-guardar-config');
