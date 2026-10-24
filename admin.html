@@ -157,6 +157,8 @@
   .btn-icono:disabled { opacity:.6; cursor:not-allowed; }
   .btn-icono .spinner { width:12px; height:12px; border-color:var(--border); border-top-color:var(--accent); }
   table.tabla s.nc { color:var(--muted); opacity:.85; }
+  table.tabla .aut-ok { color:var(--accent); font-weight:600; }
+  table.tabla .sin-aut { color:var(--muted); }
   table.tabla .dif { color:#ff6b7a; white-space:nowrap; }
   table.tabla .dif s { opacity:.75; }
   table.tabla tr.cambio td { background:rgba(255,71,87,.10); }
@@ -888,22 +890,24 @@ function difCelda(viejo, nuevo) {              // "2:00 → 3:00" resaltado
 }
 
 // Contenido de las columnas 50%, 100% y Faltante cuando no se está editando
+// Mismo criterio para las tres: verde = autorizado (cuenta), gris = calculado sin autorizar, rojo = cambió el cálculo
+function spanAut(min, clase) { const x = document.createElement('span'); x.className = clase; x.textContent = fmtHM(min); return x; }
 function contenidoAut(td, d, campo) {
   const raw = d.calc[campo];
   if (d.estado === 'cambio') {
     const snap = d.snap[campo];
     if (snap !== raw) td.appendChild(difCelda(snap, raw));
-    else if (raw > 0 && campo !== 'faltante') td.appendChild(tachado(raw));
-    else td.textContent = fmtHM(raw);
+    else if (raw > 0) td.appendChild(spanAut(raw, 'sin-aut'));
+    else td.textContent = '—';
     return;
   }
-  if (campo === 'faltante') { td.textContent = fmtHM(d.faltante); return; }      // lo que sigue sin cubrir
-  const contado = d[campo];
-  if (contado > 0) {
-    td.textContent = fmtHM(contado);
-    if (raw > contado) { td.appendChild(document.createTextNode(' ')); td.appendChild(tachado(raw)); }
-  } else if (raw > 0) td.appendChild(tachado(raw));                              // calculado y sin autorizar
-  else td.textContent = '—';
+  if (!(raw > 0)) { td.textContent = '—'; return; }
+  // autorizado: extras = lo contado; faltante = lo calculado que ya no figura como sin cubrir
+  const aut = campo === 'faltante' ? (raw - d.faltante) : d[campo];
+  if (aut > 0) {
+    td.appendChild(spanAut(aut, 'aut-ok'));
+    if (raw > aut) { td.appendChild(document.createTextNode(' ')); const r = spanAut(raw - aut, 'sin-aut'); r.textContent = '+' + r.textContent; r.title = 'Calculado y sin autorizar'; td.appendChild(r); td.title = 'Autorizado ' + fmtHM(aut) + ' de ' + fmtHM(raw) + ' calculado'; }
+  } else td.appendChild(spanAut(raw, 'sin-aut'));
 }
 
 // Controles de edición: tilde + cantidad
