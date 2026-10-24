@@ -215,7 +215,26 @@
       <div id="reg-lista"></div>
     </div>
     <div id="sec-informe" class="hidden">
-      <div class="vacio"><b>Informe</b>Próximamente: horas por tipo, con edición masiva y autorización de extras y faltantes.</div>
+      <div class="sec-head">
+        <div>
+          <h3>Informe de horas <span class="badge warn">PRELIMINAR</span></h3>
+          <p class="sub">Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Todavía no incluye autorizaciones.</p>
+        </div>
+      </div>
+      <form class="filtros" id="form-inf" autocomplete="off">
+        <div class="campo ancho">
+          <label for="inf-usuario">Empleado</label>
+          <select id="inf-usuario"><option value="">Todos</option></select>
+        </div>
+        <div class="campo">
+          <label for="inf-mes">Mes</label>
+          <select id="inf-mes"></select>
+        </div>
+        <button type="submit" class="btn btn-sec btn-sm" id="btn-inf-actualizar">&#8635; Actualizar</button>
+      </form>
+      <div class="chips hidden" id="inf-resumen"></div>
+      <div class="cargando hidden" id="inf-cargando"><div class="spinner spinner-lg"></div></div>
+      <div id="inf-lista"></div>
     </div>
 
     <!-- configuración -->
@@ -386,8 +405,8 @@ function cerrarLocal() {
   borrarToken();
   VISTA_ACTUAL = null;
   USUARIOS = [];
-  REG_INICIADO = false;
-  $('reg-lista').innerHTML = '';
+  REG_INICIADO = false; INF_INICIADO = false;
+  $('reg-lista').innerHTML = ''; $('inf-lista').innerHTML = '';
   PAR_DIRTY = false; PAR_REGLAS = []; FER_LISTA = [];
   SESION = { token: null, nombre: '', debeCambiar: false };
   $('login-clave').value = '';
@@ -454,6 +473,7 @@ function irA(vista) {
   cerrarMenu();
   if (vista === 'usuarios') cargarUsuarios();
   if (vista === 'registros') iniciarRegistros();
+  if (vista === 'informe') { poblarMeses('inf-mes'); cargarInforme(); }
   if (vista === 'parametros') cargarParametros(false);
   if (vista === 'feriados') cargarFeriados();
 }
@@ -484,8 +504,8 @@ let REG_PENDIENTE = false;
 const MESES_ATRAS = 12;
 
 // Opciones del selector: "En curso" (mes actual) y los 12 meses anteriores como 09/2026
-function poblarMeses() {
-  const sel = $('reg-mes');
+function poblarMeses(idSelect) {
+  const sel = $(idSelect || 'reg-mes');
   const previo = sel.value;
   const hoy = new Date();
   const valores = [];
@@ -653,8 +673,115 @@ function iniciarRegistros() {
   if (!REG_INICIADO) cargarRegistros();
 }
 
+// ─── informe (preliminar, solo lectura) ───
+let INF_CARGANDO = false;
+let INF_PENDIENTE = false;
+let INF_INICIADO = false;
+
+function fmtHM(min) {                 // 510 -> '8:30'; 0 -> '—'
+  if (!min) return '—';
+  return Math.floor(min / 60) + ':' + String(min % 60).padStart(2, '0');
+}
+const TIPO_DIA_ROT = { 'LUN-VIE': 'Lun a vie', 'SABADO': 'Sábado', 'DOMINGO': 'Domingo', 'FERIADO': 'Feriado' };
+
+function renderInforme(r) {
+  const cont = $('inf-lista');
+  cont.innerHTML = '';
+  const chips = $('inf-resumen');
+  chips.innerHTML = '';
+  const chip = (html, clase) => { const c = document.createElement('span'); c.className = 'chip ' + (clase || ''); c.innerHTML = html; chips.appendChild(c); };
+  chip('Horas mínimas por día: <b>' + String(r.horasMinimas).replace('.', ',') + '</b>');
+  chip('Días con jornada: <b>' + r.filas.length + '</b>');
+  if (r.abiertas.length) chip('Jornadas sin cerrar (no se calculan): <b>' + r.abiertas.length + '</b>', 'warn');
+  if (r.anomalas.length) chip('Jornadas con fechas inconsistentes: <b>' + r.anomalas.length + '</b>', 'warn');
+  chips.classList.remove('hidden');
+
+  const aviso = (titulo, items) => {
+    const d = document.createElement('div'); d.className = 'vacio'; d.style.cssText = 'padding:14px 18px;margin-bottom:14px;text-align:left;border-color:rgba(255,165,2,.5);';
+    d.innerHTML = '<b style="font-size:14px;margin-bottom:6px;color:var(--warn)"></b><span></span>';
+    d.querySelector('b').textContent = titulo;
+    d.querySelector('span').textContent = items;
+    cont.appendChild(d);
+  };
+  if (r.abiertas.length) aviso('Jornadas sin cerrar en este mes', r.abiertas.map(a => a.usuario + ' (inicio ' + fmtDiaCorto(a.inicio.substring(0, 10)) + ' ' + hhmm(a.inicio) + ')').join(' · '));
+  if (r.anomalas.length) aviso('Jornadas con fin anterior al inicio', r.anomalas.map(a => a.usuario + ' (inicio ' + a.inicio + ')').join(' · '));
+
+  if (!r.filas.length) {
+    const v = document.createElement('div'); v.className = 'vacio'; v.textContent = 'No hay jornadas cerradas en el mes seleccionado.';
+    cont.appendChild(v);
+    return;
+  }
+
+  // totales por empleado
+  const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; cont.appendChild(h4);
+  const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
+  const t1 = document.createElement('table'); t1.className = 'tabla';
+  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante (informativo)</th></tr></thead>';
+  const b1 = document.createElement('tbody');
+  r.totales.forEach(t => {
+    const tr = document.createElement('tr');
+    celda(tr, t.usuario, 'nombre'); celda(tr, String(t.dias), 'num'); celda(tr, fmtHM(t.total), 'num');
+    celda(tr, fmtHM(t.normal), 'num'); celda(tr, fmtHM(t.c50), 'num'); celda(tr, fmtHM(t.c100), 'num'); celda(tr, fmtHM(t.faltante), 'num');
+    b1.appendChild(tr);
+  });
+  t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
+
+  // detalle por día
+  const h5 = document.createElement('h3'); h5.style.cssText = 'font-size:16px;margin:24px 0 10px;'; h5.textContent = 'Detalle por día'; cont.appendChild(h5);
+  const sx = document.createElement('div'); sx.className = 'scroll-x';
+  const tb = document.createElement('table'); tb.className = 'tabla';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Lapsos</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th></tr></thead>';
+  const body = document.createElement('tbody');
+  let previo = null;
+  r.filas.forEach(d => {
+    const tr = document.createElement('tr');
+    if (previo !== null && previo !== d.fecha) tr.className = 'nuevo-dia';
+    previo = d.fecha;
+    celda(tr, fmtDiaCorto(d.fecha), 'num');
+    celda(tr, d.usuario, 'nombre');
+    const tdT = document.createElement('td'); tdT.textContent = TIPO_DIA_ROT[d.tipoDia] || d.tipoDia;
+    if (d.feriado) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Feriado', 'warn'); b.title = d.feriado; tdT.appendChild(b); }
+    tr.appendChild(tdT);
+    celda(tr, d.lapsos.join(' / '), 'num');
+    celda(tr, fmtHM(d.total), 'num'); celda(tr, fmtHM(d.normal), 'num'); celda(tr, fmtHM(d.c50), 'num'); celda(tr, fmtHM(d.c100), 'num');
+    celda(tr, fmtHM(d.faltante), 'num');
+    body.appendChild(tr);
+  });
+  tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
+}
+
+async function cargarInforme() {
+  if (INF_CARGANDO) { INF_PENDIENTE = true; return; }
+  if (!$('inf-mes').value) poblarMeses('inf-mes');
+  INF_CARGANDO = true;
+  const btn = $('btn-inf-actualizar');
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Actualizando...';
+  $('inf-cargando').classList.remove('hidden');
+  $('inf-lista').innerHTML = '';
+  $('inf-resumen').classList.add('hidden');
+  try {
+    const r = await llamarGestor('gestor_informe', { mes: $('inf-mes').value, usuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+    const sel = $('inf-usuario'), actual = sel.value;
+    sel.innerHTML = '<option value="">Todos</option>';
+    (r.empleados || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+    sel.value = (r.empleados || []).indexOf(actual) >= 0 ? actual : '';
+    renderInforme(r);
+    INF_INICIADO = true;
+  } finally {
+    INF_CARGANDO = false;
+    btn.disabled = false; btn.innerHTML = original;
+    $('inf-cargando').classList.add('hidden');
+    if (INF_PENDIENTE) { INF_PENDIENTE = false; cargarInforme(); }
+  }
+}
+$('form-inf').addEventListener('submit', ev => { ev.preventDefault(); cargarInforme(); });
+$('inf-mes').addEventListener('change', cargarInforme);
+$('inf-usuario').addEventListener('change', cargarInforme);
+
 // ─── parámetros ───
-const TIPOS_DIA = ['LUN-VIE', 'SABADO', 'DOMINGO', 'FERIADO'];
+const TIPOS_DIA =['LUN-VIE', 'SABADO', 'DOMINGO', 'FERIADO'];
 const TIPO_ROTULO = { 'LUN-VIE': 'Lunes a viernes', 'SABADO': 'Sábado', 'DOMINGO': 'Domingo', 'FERIADO': 'Feriado' };
 const CAT_ROTULO = { 'NORMAL': 'Normal', '50': 'Extra 50%', '100': 'Extra 100%' };
 let PAR_REGLAS = [];
