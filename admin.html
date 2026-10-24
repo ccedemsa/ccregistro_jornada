@@ -17,6 +17,7 @@
   }
   html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font-display); -webkit-font-smoothing:antialiased; }
   .hidden { display:none !important; }
+  .mono { font-family:var(--font-mono); }
 
   /* ─── LOGIN / CAMBIO DE CLAVE ─── */
   .center { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px; }
@@ -41,17 +42,51 @@
   .msg { font-family:var(--font-mono); font-size:12px; color:var(--danger); margin-top:12px; min-height:16px; line-height:1.4; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .spinner { width:16px; height:16px; border:2px solid rgba(0,0,0,.2); border-top-color:currentColor; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
+  .btn-sec .spinner { border-color:var(--border); border-top-color:var(--accent); }
+  .spinner-lg { width:34px; height:34px; border-width:3px; border-color:var(--border); border-top-color:var(--accent); }
 
-  /* ─── APP ─── */
-  .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; background:var(--surface); border-bottom:1px solid var(--border); }
-  .topbar h2 { font-size:18px; font-weight:800; color:var(--accent); }
+  /* ─── BARRA SUPERIOR ─── */
+  .topbar { display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .topbar h2 { font-size:18px; font-weight:800; color:var(--accent); white-space:nowrap; }
+  .tabs { display:flex; gap:6px; }
+  .tab { background:transparent; border:1px solid transparent; border-radius:10px; padding:9px 16px; color:var(--muted); font-family:var(--font-display); font-size:14px; font-weight:700; cursor:pointer; }
+  .tab:hover { color:var(--text); }
+  .tab.active { background:var(--surface2); border-color:var(--border); color:var(--text); }
+  .topbar .espacio { flex:1; }
   .topbar .who { font-family:var(--font-mono); font-size:12px; color:var(--muted); }
-  .topbar .acciones { display:flex; align-items:center; gap:10px; }
+  .engr-wrap { position:relative; }
+  .engr { width:40px; height:40px; border-radius:10px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:20px; cursor:pointer; line-height:1; }
+  .engr:hover, .engr.active { border-color:var(--accent); color:var(--accent); }
+  .menu { position:absolute; right:0; top:46px; min-width:210px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:6px; z-index:50; box-shadow:0 8px 28px rgba(0,0,0,.4); }
+  .menu button { display:block; width:100%; text-align:left; background:transparent; border:none; border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--font-display); font-size:14px; font-weight:600; cursor:pointer; }
+  .menu button:hover { background:var(--surface); color:var(--accent); }
+  .menu hr { border:none; border-top:1px solid var(--border); margin:6px 4px; }
+
+  /* ─── CONTENIDO ─── */
   .main { padding:24px 20px; max-width:1100px; margin:0 auto; }
+  .main h3 { font-size:20px; font-weight:800; margin-bottom:4px; }
+  .main p.sub { font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-bottom:18px; line-height:1.5; }
   .vacio { background:var(--surface); border:1px dashed var(--border); border-radius:16px; padding:48px 20px; text-align:center; color:var(--muted); font-family:var(--font-mono); font-size:13px; line-height:1.6; }
   .vacio b { display:block; color:var(--text); font-family:var(--font-display); font-size:18px; margin-bottom:8px; }
+  .cargando { display:flex; justify-content:center; padding:40px; }
 
-  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; }
+  .alta-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:18px; }
+  .alta-form .campo { flex:1; min-width:220px; }
+  .alta-form label { margin-top:0; }
+  .alta-form .btn { width:auto; margin-top:0; padding:13px 20px; }
+
+  table.tabla { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  table.tabla th { text-align:left; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:12px 14px; background:var(--surface2); }
+  table.tabla td { padding:12px 14px; border-top:1px solid var(--border); font-size:14px; vertical-align:middle; }
+  table.tabla td.nombre { font-weight:700; }
+  table.tabla td.acc button { margin:2px 8px 2px 0; }
+  table.tabla tr.baja td { opacity:.55; }
+  table.tabla tr.baja td.acc { opacity:1; }
+  .badge { font-family:var(--font-mono); font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); }
+  .badge.ok { color:var(--accent); border-color:rgba(0,229,160,.4); }
+  .badge.off { color:var(--danger); border-color:rgba(255,71,87,.4); }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-family:var(--font-mono); font-size:13px; z-index:200; opacity:0; transition:opacity .25s; max-width:90vw; pointer-events:none; }
   .toast.show { opacity:1; }
   .toast.success { border-color:rgba(0,229,160,.4); color:var(--accent); }
   .toast.error { border-color:rgba(255,71,87,.4); color:var(--danger); }
@@ -96,16 +131,59 @@
 <div id="vista-app" class="hidden">
   <div class="topbar">
     <h2>Gestión de Jornadas</h2>
-    <div class="acciones">
-      <span class="who" id="app-quien"></span>
-      <button class="btn btn-sec btn-sm" id="btn-cambiar-clave">Cambiar contraseña</button>
-      <button class="btn btn-sec btn-sm" id="btn-salir">Salir</button>
+    <div class="tabs">
+      <button class="tab" id="tab-registros" data-vista="registros">Registros diarios</button>
+      <button class="tab" id="tab-informe" data-vista="informe">Informe</button>
+    </div>
+    <div class="espacio"></div>
+    <span class="who" id="app-quien"></span>
+    <div class="engr-wrap">
+      <button class="engr" id="btn-engranaje" title="Configuración" aria-label="Configuración">&#9881;</button>
+      <div class="menu hidden" id="menu-config">
+        <button data-vista="usuarios">Usuarios</button>
+        <button data-vista="parametros">Parámetros</button>
+        <button data-vista="feriados">Feriados</button>
+        <hr>
+        <button id="mi-cambiar-clave">Cambiar mi contraseña</button>
+        <button id="mi-salir">Salir</button>
+      </div>
     </div>
   </div>
+
   <div class="main">
-    <div class="vacio">
-      <b>Control diario</b>
-      Próximamente: listado diario, autorización de horas y resumen mensual.
+    <!-- vistas principales -->
+    <div id="sec-registros" class="hidden">
+      <div class="vacio"><b>Registros diarios</b>Próximamente: las jornadas y novedades que cargó cada empleado, día por día.</div>
+    </div>
+    <div id="sec-informe" class="hidden">
+      <div class="vacio"><b>Informe</b>Próximamente: horas por tipo, con edición masiva y autorización de extras y faltantes.</div>
+    </div>
+
+    <!-- configuración -->
+    <div id="sec-usuarios" class="hidden">
+      <h3>Usuarios</h3>
+      <p class="sub">Empleados que pueden registrar jornadas. La baja bloquea el acceso; los registros anteriores se conservan.</p>
+      <form class="alta-form" id="form-usr-alta" autocomplete="off">
+        <div class="campo">
+          <label for="usr-nuevo">Nuevo empleado</label>
+          <input type="text" id="usr-nuevo" placeholder="Ej: JUAN GARCÍA" maxlength="60" autocapitalize="characters" style="text-transform:uppercase;">
+        </div>
+        <button type="submit" class="btn" id="btn-usr-alta">Agregar empleado</button>
+      </form>
+      <div class="cargando hidden" id="usr-cargando"><div class="spinner spinner-lg"></div></div>
+      <div id="usr-tabla" class="hidden">
+        <table class="tabla">
+          <thead><tr><th>Nombre</th><th>Estado</th><th>Clave</th><th>Acciones</th></tr></thead>
+          <tbody id="usr-tbody"></tbody>
+        </table>
+        <div class="vacio hidden" id="usr-vacio" style="margin-top:12px;">Todavía no hay empleados cargados.</div>
+      </div>
+    </div>
+    <div id="sec-parametros" class="hidden">
+      <div class="vacio"><b>Parámetros</b>Próximamente: horario normal, horas mínimas y porcentajes por día y rango horario.</div>
+    </div>
+    <div id="sec-feriados" class="hidden">
+      <div class="vacio"><b>Feriados</b>Próximamente: alta y baja de feriados.</div>
     </div>
   </div>
 </div>
@@ -168,6 +246,7 @@ async function conSpinner(btn, textoEspera, fn) {
 function entrarALaApp() {
   $('app-quien').textContent = SESION.nombre;
   mostrar('app');
+  irA(VISTA_ACTUAL || 'registros');
 }
 
 function irACambioClave(forzado) {
@@ -185,6 +264,8 @@ function irACambioClave(forzado) {
 
 function cerrarLocal() {
   borrarToken();
+  VISTA_ACTUAL = null;
+  USUARIOS = [];
   SESION = { token: null, nombre: '', debeCambiar: false };
   $('login-clave').value = '';
   $('login-msg').textContent = '';
@@ -226,12 +307,127 @@ $('form-clave').addEventListener('submit', async ev => {
 });
 
 $('btn-clave-cancelar').addEventListener('click', entrarALaApp);
-$('btn-cambiar-clave').addEventListener('click', () => irACambioClave(false));
 
-$('btn-salir').addEventListener('click', async () => {
+$('mi-cambiar-clave').addEventListener('click', () => { cerrarMenu(); irACambioClave(false); });
+
+$('mi-salir').addEventListener('click', async () => {
   const token = SESION.token;
-  await conSpinner($('btn-salir'), 'Saliendo...', () => llamar({ accion: 'gestor_logout', token }));
+  cerrarMenu();
+  await llamar({ accion: 'gestor_logout', token });
   cerrarLocal();
+});
+
+// ─── navegación ───
+let VISTA_ACTUAL = null;
+const VISTAS_TAB = ['registros', 'informe'];
+const VISTAS = ['registros', 'informe', 'usuarios', 'parametros', 'feriados'];
+
+function irA(vista) {
+  if (VISTAS.indexOf(vista) < 0) vista = 'registros';
+  VISTA_ACTUAL = vista;
+  VISTAS.forEach(v => $('sec-' + v).classList.toggle('hidden', v !== vista));
+  VISTAS_TAB.forEach(v => $('tab-' + v).classList.toggle('active', v === vista));
+  $('btn-engranaje').classList.toggle('active', VISTAS_TAB.indexOf(vista) < 0);
+  cerrarMenu();
+  if (vista === 'usuarios') cargarUsuarios();
+}
+
+function cerrarMenu() { $('menu-config').classList.add('hidden'); }
+
+$('btn-engranaje').addEventListener('click', ev => {
+  ev.stopPropagation();
+  $('menu-config').classList.toggle('hidden');
+});
+document.addEventListener('click', ev => {
+  if (!ev.target.closest('#menu-config')) cerrarMenu();
+});
+document.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => irA(b.dataset.vista)));
+
+// Llamada autenticada: agrega el token y, si la sesión venció, vuelve al login
+async function llamarGestor(accion, extra) {
+  const r = await llamar(Object.assign({ accion, token: SESION.token }, extra || {}));
+  if (r.error && /Sesión vencida/.test(r.error)) { cerrarLocal(); toast('La sesión venció. Ingresá de nuevo.', 'error'); }
+  return r;
+}
+
+// ─── usuarios (empleados) ───
+let USUARIOS = [];
+let _usrCargando = false;
+
+function renderUsuarios() {
+  const tb = $('usr-tbody');
+  tb.innerHTML = '';
+  $('usr-vacio').classList.toggle('hidden', USUARIOS.length > 0);
+  USUARIOS.forEach(u => {
+    const tr = document.createElement('tr');
+    if (!u.activo) tr.className = 'baja';
+
+    const tdN = document.createElement('td'); tdN.textContent = u.nombre; tdN.className = 'nombre';
+    const tdE = document.createElement('td');
+    const bd = document.createElement('span'); bd.className = 'badge ' + (u.activo ? 'ok' : 'off'); bd.textContent = u.activo ? 'Activo' : 'De baja';
+    tdE.appendChild(bd);
+    const tdC = document.createElement('td'); tdC.className = 'mono'; tdC.textContent = u.tieneClave ? 'Personal' : 'Inicial (123456)';
+    const tdA = document.createElement('td'); tdA.className = 'acc';
+
+    const b1 = document.createElement('button');
+    b1.className = 'btn btn-sec btn-sm'; b1.dataset.nombre = u.nombre; b1.dataset.accion = u.activo ? 'baja' : 'alta';
+    b1.textContent = u.activo ? 'Dar de baja' : 'Reactivar';
+    const b2 = document.createElement('button');
+    b2.className = 'btn btn-sec btn-sm'; b2.dataset.nombre = u.nombre; b2.dataset.accion = 'reset';
+    b2.textContent = 'Resetear clave';
+    tdA.appendChild(b1); tdA.appendChild(b2);
+
+    tr.appendChild(tdN); tr.appendChild(tdE); tr.appendChild(tdC); tr.appendChild(tdA);
+    tb.appendChild(tr);
+  });
+}
+
+async function cargarUsuarios() {
+  if (_usrCargando) return;
+  _usrCargando = true;
+  $('usr-cargando').classList.remove('hidden');
+  $('usr-tabla').classList.add('hidden');
+  const r = await llamarGestor('gestor_usuarios_listar');
+  _usrCargando = false;
+  $('usr-cargando').classList.add('hidden');
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+  USUARIOS = r.usuarios || [];
+  $('usr-tabla').classList.remove('hidden');
+  renderUsuarios();
+}
+
+$('form-usr-alta').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const nombre = $('usr-nuevo').value.trim().replace(/\s+/g, ' ').toUpperCase();
+  if (nombre.length < 3) { toast('Ingresá el nombre completo del empleado', 'error'); return; }
+  const r = await conSpinner($('btn-usr-alta'), 'Agregando...', () => llamarGestor('gestor_usuario_alta', { nombre }));
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+  USUARIOS = r.usuarios; renderUsuarios();
+  $('usr-nuevo').value = '';
+  toast('Empleado agregado. Su clave inicial es 123456.');
+});
+
+$('usr-tbody').addEventListener('click', async ev => {
+  const btn = ev.target.closest('button[data-accion]');
+  if (!btn) return;
+  const nombre = btn.dataset.nombre, accion = btn.dataset.accion;
+  let msjConfirm, llamada, espera, ok;
+  if (accion === 'baja') {
+    msjConfirm = `¿Dar de baja a ${nombre}?\n\nNo va a poder registrar nada desde ningún celular. Sus registros anteriores se conservan.`;
+    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: false }); espera = 'Procesando...'; ok = 'Empleado dado de baja';
+  } else if (accion === 'alta') {
+    msjConfirm = `¿Reactivar a ${nombre}?`;
+    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: true }); espera = 'Procesando...'; ok = 'Empleado reactivado';
+  } else {
+    msjConfirm = `¿Resetear la clave de ${nombre}?\n\nVuelve a 123456 y tendrá que elegir una nueva en su próximo ingreso.`;
+    llamada = () => llamarGestor('gestor_usuario_reset_clave', { nombre }); espera = 'Reseteando...'; ok = 'Clave reseteada a 123456';
+  }
+  if (!confirm(msjConfirm)) return;
+  document.querySelectorAll('#usr-tbody button').forEach(b => b.disabled = true);
+  const r = await conSpinner(btn, espera, llamada);
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); renderUsuarios(); return; }
+  USUARIOS = r.usuarios; renderUsuarios();
+  toast(ok);
 });
 
 // Al abrir / recargar: si hay token guardado, se valida contra el servidor
