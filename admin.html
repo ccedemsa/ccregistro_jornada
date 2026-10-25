@@ -186,6 +186,9 @@
   table.tabla .th-sub { text-transform:none; letter-spacing:0; font-size:10px; opacity:.8; }
   table.tabla td.hdec { font-size:17px; font-weight:600; }
   table.tabla td.hdec .dec { font-size:11.5px; font-weight:400; }
+  table.tabla.tot td { padding-top:5px; padding-bottom:5px; font-size:13px; }
+  table.tabla.tot td.hdec { font-size:15px; }
+  table.tabla.tot .dec { display:inline; margin:0 0 0 8px; }
   table.tabla .dec { display:block; font-size:11.5px; color:var(--muted); margin-top:1px; }
   table.tabla .aut-ok { color:var(--accent); font-weight:600; }
   table.tabla .sin-aut { color:var(--muted); }
@@ -893,7 +896,8 @@ function celdaUbicacion(tr, ubic) {
   tr.appendChild(td);
 }
 
-function renderRegistros(regs, truncado) {
+function renderRegistros(regs, truncado, cerrados) {
+  const mesesCerrados = cerrados || [];
   const cont = $('reg-lista');
   cont.innerHTML = '';
   REG_POR_ID = {};
@@ -907,6 +911,7 @@ function renderRegistros(regs, truncado) {
   chip('Jornadas: <b>' + jor + '</b>');
   chip('Novedades: <b>' + nov + '</b>');
   chip('Sin cerrar: <b>' + abiertas + '</b>', abiertas ? 'warn' : '');
+  if (mesesCerrados.length) chip(mesesCerrados.length === 1 ? 'Mes cerrado: <b>' + mesesCerrados[0].substring(5, 7) + '/' + mesesCerrados[0].substring(0, 4) + '</b>' : 'Meses cerrados: <b>' + mesesCerrados.map(m => m.substring(5, 7) + '/' + m.substring(0, 4)).join(', ') + '</b>', 'warn');
   if (truncado) chip('Se muestran solo los primeros 1000 registros. Acotá el período.', 'warn');
   chips.classList.remove('hidden');
 
@@ -965,6 +970,7 @@ function renderRegistros(regs, truncado) {
     if (r.tipo === 'JORNADA') {
       const be = document.createElement('button'); be.type = 'button'; be.className = 'btn-icono';
       be.dataset.editarId = r.rowId; be.title = r.abierta ? 'Completar o corregir jornada' : 'Corregir jornada'; be.setAttribute('aria-label', be.title);
+      if (mesesCerrados.indexOf(r.inicio.substring(0, 7)) >= 0) { be.disabled = true; be.title = 'Mes cerrado: para modificarlo hay que reabrirlo desde el Informe'; be.setAttribute('aria-label', be.title); r.cerrado = true; }
       be.innerHTML = ICONO_LAPIZ; tdE.appendChild(be);
     }
     tr.appendChild(tdE);
@@ -997,7 +1003,7 @@ async function cargarRegistros() {
     const r = await llamarGestor('gestor_registros', { desde, hasta, usuario: $('reg-usuario').value }, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     llenarEmpleados(r.empleados);
-    renderRegistros(r.registros || [], !!r.truncado);
+    renderRegistros(r.registros || [], !!r.truncado, r.cerrados || []);
     REG_INICIADO = true;
   } finally {
     REG_CARGANDO = false;
@@ -1049,7 +1055,7 @@ $('reg-lista').addEventListener('click', ev => {
   const b = ev.target.closest('button[data-editar-id]');
   if (!b) return;
   const r = REG_POR_ID[b.dataset.editarId];
-  if (!r) return;
+  if (!r || r.cerrado) return;
   ED_ID = r.rowId;
   const pi = partesTs(r.inicio), pf = partesTs(r.fin);
   $('ed-det').textContent = r.usuario + (r.abierta ? ' · jornada sin cerrar' : ' · jornada cerrada') + '. Los cambios quedan auditados.';
@@ -1209,9 +1215,9 @@ function renderInforme(r) {
   else sb.textContent = 'Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Solo cuentan las extras y los faltantes que autorices con Editar.' + (cierre.nota ? ' ' + cierre.nota + '.' : '');
 
   // totales por empleado
-  const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'horas decimales y h:mm'; h4.appendChild(hs); cont.appendChild(h4);
+  const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
-  const t1 = document.createElement('table'); t1.className = 'tabla';
+  const t1 = document.createElement('table'); t1.className = 'tabla compacta tot';
   t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
   const b1 = document.createElement('tbody');
   r.totales.forEach(t => {
