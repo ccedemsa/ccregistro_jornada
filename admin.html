@@ -1220,6 +1220,14 @@ function renderInforme(r) {
     celdaHoras(tr, t.normal + (t.comp || 0)); celdaHoras(tr, t.c50); celdaHoras(tr, t.c100); celdaHoras(tr, t.faltante);
     b1.appendChild(tr);
   });
+  if (r.totales.length > 1) {                      // fila de suma de los totales (varios empleados)
+    const s = { dias: 0, ausentes: 0, total: 0, normal: 0, c50: 0, c100: 0, faltante: 0 };
+    r.totales.forEach(t => { s.dias += t.dias; s.ausentes += t.ausentes; s.total += t.total; s.normal += t.normal + (t.comp || 0); s.c50 += t.c50; s.c100 += t.c100; s.faltante += t.faltante; });
+    const tr = document.createElement('tr'); tr.className = 'fila-suma';
+    celda(tr, 'Suma', 'nombre'); celda(tr, String(s.dias), 'num'); celda(tr, s.ausentes ? String(s.ausentes) : '—', 'num'); celdaHoras(tr, s.total);
+    celdaHoras(tr, s.normal); celdaHoras(tr, s.c50); celdaHoras(tr, s.c100); celdaHoras(tr, s.faltante);
+    b1.appendChild(tr);
+  }
   t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
 
   // encabezado del detalle con los botones de edición
