@@ -658,6 +658,7 @@ function entrarALaApp() {
   $('app-quien').textContent = SESION.nombre;
   mostrar('app');
   irA(VISTA_ACTUAL || 'registros');
+  refrescarMeses();
 }
 
 function irACambioClave(forzado) {
@@ -676,6 +677,7 @@ function irACambioClave(forzado) {
 function cerrarLocal() {
   borrarToken();
   VISTA_ACTUAL = null;
+  MESES_DISP = null;
   USUARIOS = [];
   REG_INICIADO = false; INF_INICIADO = false; INF_EDIT = false; INF_DATA = null; INF_SOLO_CAMBIOS = false;
   $('reg-lista').innerHTML = ''; $('inf-lista').innerHTML = '';
@@ -836,23 +838,37 @@ let REG_PENDIENTE = false;
 const MESES_ATRAS = 12;
 
 // Opciones del selector: "En curso" (mes actual) y los 12 meses anteriores como 09/2026
+let MESES_DISP = null;           // meses con datos que informa el servidor (más nuevo primero); null = todavía no llegó
 function poblarMeses(idSelect) {
   const sel = $(idSelect || 'reg-mes');
   const previo = sel.value;
   const hoy = new Date();
-  const valores = [];
-  sel.innerHTML = '';
-  for (let i = 0; i <= MESES_ATRAS; i++) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const valor = d.getFullYear() + '-' + mm;
-    const o = document.createElement('option');
-    o.value = valor;
-    o.textContent = i === 0 ? 'En curso' : mm + '/' + d.getFullYear();
-    sel.appendChild(o);
-    valores.push(valor);
+  const actual = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+  let valores = [];
+  if (MESES_DISP && MESES_DISP.length) {
+    valores = MESES_DISP.slice();
+    if (valores.indexOf(actual) < 0) valores.unshift(actual);
+  } else {                                                    // sin la lista del servidor: los últimos meses, como antes
+    for (let i = 0; i <= MESES_ATRAS; i++) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      valores.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
   }
+  sel.innerHTML = '';
+  valores.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v === actual ? 'En curso' : v.substring(5, 7) + '/' + v.substring(0, 4);
+    sel.appendChild(o);
+  });
   sel.value = valores.indexOf(previo) >= 0 ? previo : valores[0];
+}
+// Pide al servidor los meses con datos y rearma los dos desplegables (si falla, quedan como estaban)
+async function refrescarMeses() {
+  try {
+    const r = await llamarGestor('gestor_meses', {}, true);
+    if (r && r.meses && r.meses.length) { MESES_DISP = r.meses; poblarMeses('reg-mes'); poblarMeses('inf-mes'); }
+  } catch (e) { /* queda la lista anterior */ }
 }
 
 // '2026-10' -> { desde: '2026-10-01', hasta: '2026-10-31' }
@@ -1062,7 +1078,7 @@ async function cargarRegistros() {
   }
 }
 
-$('form-reg').addEventListener('submit', ev => { ev.preventDefault(); cargarRegistros(); });
+$('form-reg').addEventListener('submit', ev => { ev.preventDefault(); refrescarMeses(); cargarRegistros(); });
 $('reg-mes').addEventListener('change', cargarRegistros);
 
 
@@ -1859,7 +1875,7 @@ async function cargarInforme(sinPreguntar, desdeMes) {
     else if (reconsultar) cargarInforme(true);
   }
 }
-$('form-inf').addEventListener('submit', ev => { ev.preventDefault(); cargarInforme(); });
+$('form-inf').addEventListener('submit', ev => { ev.preventDefault(); refrescarMeses(); cargarInforme(); });
 $('inf-mes').addEventListener('change', () => cargarInforme(false, true));
 
 // ─── parámetros ───
