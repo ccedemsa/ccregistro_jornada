@@ -315,8 +315,12 @@
       </div>
       <form class="filtros" id="form-reg" autocomplete="off">
         <div class="campo ancho">
-          <label for="reg-usuario">Empleado</label>
-          <select id="reg-usuario"><option value="">Todos</option></select>
+          <label id="reg-usu-label">Empleado</label>
+          <input type="hidden" id="reg-usuario" value="">
+          <div class="ms-wrap">
+            <button type="button" id="reg-usu-btn" class="ms-btn" aria-haspopup="true" aria-expanded="false" aria-labelledby="reg-usu-label reg-usu-btn">Todos</button>
+            <div id="reg-usu-panel" class="ms-panel hidden" role="group" aria-labelledby="reg-usu-label"></div>
+          </div>
         </div>
         <div class="campo">
           <label for="reg-mes">Mes</label>
@@ -979,13 +983,55 @@ function renderRegistros(regs, truncado, cerrados) {
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
 }
 
+// Selector de empleados de Registros diarios: casillas, uno o varios (el valor viaja como nombres separados por '|')
+let REG_SEL = [];                 // vacío = todos
+let REG_OPC = [];                 // empleados disponibles
+let REG_ULT_USU = '';             // selección con la que se cargó la lista
+function sincronizarRegUsuarios() {
+  $('reg-usuario').value = REG_SEL.join('|');
+  $('reg-usu-btn').textContent = !REG_SEL.length ? 'Todos' : (REG_SEL.length <= 2 ? REG_SEL.join(', ') : REG_SEL.length + ' empleados');
+  $('reg-usu-btn').title = REG_SEL.length ? REG_SEL.join(', ') : 'Todos los empleados';
+}
+function dibujarPanelRegUsuarios() {
+  const p = $('reg-usu-panel'); p.innerHTML = '';
+  const fila = (texto, valor, marcado) => {
+    const l = document.createElement('label');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.dataset.usu = valor; c.checked = marcado;
+    l.appendChild(c); l.appendChild(document.createTextNode(texto)); p.appendChild(l);
+  };
+  fila('Todos', '', REG_SEL.length === 0);
+  REG_OPC.forEach(n => fila(n, n, REG_SEL.indexOf(n) >= 0));
+  const pie = document.createElement('div'); pie.className = 'ms-pie';
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sm'; b.id = 'reg-usu-aplicar'; b.textContent = 'Aplicar';
+  pie.appendChild(b); p.appendChild(pie);
+}
+function regPanelAbierto() { return !$('reg-usu-panel').classList.contains('hidden'); }
+function cerrarRegPanel(aplicar) {
+  if (!regPanelAbierto()) return;
+  $('reg-usu-panel').classList.add('hidden'); $('reg-usu-btn').setAttribute('aria-expanded', 'false');
+  if (aplicar && $('reg-usuario').value !== REG_ULT_USU) cargarRegistros();
+}
+$('reg-usu-btn').addEventListener('click', ev => {
+  ev.stopPropagation();
+  if (regPanelAbierto()) { cerrarRegPanel(true); return; }
+  if ($('reg-usu-btn').disabled) return;
+  dibujarPanelRegUsuarios();
+  $('reg-usu-panel').classList.remove('hidden'); $('reg-usu-btn').setAttribute('aria-expanded', 'true');
+});
+$('reg-usu-panel').addEventListener('click', ev => { ev.stopPropagation(); if (ev.target.id === 'reg-usu-aplicar') cerrarRegPanel(true); });
+$('reg-usu-panel').addEventListener('change', ev => {
+  const c = ev.target; if (!c.dataset || c.dataset.usu === undefined) return;
+  if (c.dataset.usu === '') REG_SEL = [];
+  else REG_SEL = c.checked ? REG_SEL.concat(c.dataset.usu) : REG_SEL.filter(n => n !== c.dataset.usu);
+  sincronizarRegUsuarios(); dibujarPanelRegUsuarios();
+});
+document.addEventListener('click', () => cerrarRegPanel(true));
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarRegPanel(true); });
+
 function llenarEmpleados(lista) {
-  const sel = $('reg-usuario');
-  const actual = sel.value;
-  sel.innerHTML = '';
-  const t = document.createElement('option'); t.value = ''; t.textContent = 'Todos'; sel.appendChild(t);
-  (lista || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
-  sel.value = (lista || []).indexOf(actual) >= 0 ? actual : '';
+  REG_OPC = lista || [];
+  REG_SEL = REG_SEL.filter(n => REG_OPC.indexOf(n) >= 0);
+  sincronizarRegUsuarios();
 }
 
 async function cargarRegistros() {
@@ -999,15 +1045,18 @@ async function cargarRegistros() {
   $('reg-cargando').classList.remove('hidden');
   $('reg-lista').innerHTML = '';
   $('reg-resumen').classList.add('hidden');
+  $('reg-usu-btn').disabled = true;
   try {
     const r = await llamarGestor('gestor_registros', { desde, hasta, usuario: $('reg-usuario').value }, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     llenarEmpleados(r.empleados);
+    REG_ULT_USU = $('reg-usuario').value;
     renderRegistros(r.registros || [], !!r.truncado, r.cerrados || []);
     REG_INICIADO = true;
   } finally {
     REG_CARGANDO = false;
     btn.disabled = false; btn.innerHTML = original;
+    $('reg-usu-btn').disabled = false;
     $('reg-cargando').classList.add('hidden');
     if (REG_PENDIENTE) { REG_PENDIENTE = false; cargarRegistros(); }
   }
@@ -1015,7 +1064,6 @@ async function cargarRegistros() {
 
 $('form-reg').addEventListener('submit', ev => { ev.preventDefault(); cargarRegistros(); });
 $('reg-mes').addEventListener('change', cargarRegistros);
-$('reg-usuario').addEventListener('change', cargarRegistros);
 
 
 // ─── editar jornada (gestor) ───
