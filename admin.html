@@ -161,6 +161,7 @@
   table.tabla.compacta th { padding:9px 14px; }
   table.tabla.compacta td.acc { padding:3px 14px; }
   table.tabla.compacta .badge { padding:1px 8px; font-size:10px; }
+  table.tabla th input.th-todos { vertical-align:middle; margin-left:4px; cursor:pointer; }
   .btn-icono { display:inline-flex; align-items:center; justify-content:center; width:32px; height:26px; padding:0; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); cursor:pointer; margin:0 !important; }
   .btn-icono:hover { color:var(--warn); border-color:var(--warn); }
   .btn-icono.activo { color:var(--violeta); border-color:rgba(177,140,255,.5); }
@@ -1313,7 +1314,43 @@ function renderInforme(r) {
     td.textContent = 'No hay filas con cambios por revisar.'; tr.appendChild(td); body.appendChild(tr);
   }
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
+  if (INF_EDIT) {                                   // casilla en el título de 50% / 100% / Faltante: marca o desmarca toda la columna
+    const ths = tb.querySelectorAll('thead th');
+    [['c50', 6], ['c100', 7], ['faltante', 8]].forEach(([campo, i]) => {
+      const c = document.createElement('input'); c.type = 'checkbox'; c.className = 'th-todos'; c.dataset.todos = campo;
+      c.title = 'Marcar o desmarcar todos los de esta columna'; c.setAttribute('aria-label', 'Marcar todos: ' + ths[i].textContent);
+      ths[i].appendChild(document.createTextNode(' ')); ths[i].appendChild(c);
+    });
+    refrescarTodos();
+  }
 }
+
+// Estado de las casillas de título (marcadas / intermedio / vacías) según las de cada día
+function refrescarTodos() {
+  $('inf-lista').querySelectorAll('input.th-todos').forEach(h => {
+    const todas = $('inf-lista').querySelectorAll('.aut-cel input[type="checkbox"][data-campo="' + h.dataset.todos + '"]');
+    let n = 0; todas.forEach(c => { if (c.checked) n++; });
+    h.disabled = todas.length === 0;
+    h.checked = todas.length > 0 && n === todas.length;
+    h.indeterminate = n > 0 && n < todas.length;
+  });
+}
+
+$('inf-lista').addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.classList && t.classList.contains('th-todos')) {
+    const campo = t.dataset.todos, marcar = t.checked;
+    $('inf-lista').querySelectorAll('.aut-cel').forEach(w => {
+      const chk = w.querySelector('input[type="checkbox"]'), inp = w.querySelector('input.aut-min');
+      if (!chk || chk.dataset.campo !== campo) return;
+      if (marcar && !chk.checked) { inp.value = fmtMinInput(parseInt(inp.dataset.raw, 10)); }   // si ya estaba tildado se respeta la cantidad que tenía
+      chk.checked = marcar; inp.disabled = !marcar;
+    });
+    refrescarTodos();
+  } else if (t.matches && t.matches('.aut-cel input[type="checkbox"]')) {
+    refrescarTodos();
+  }
+});
 
 function filtrosInformeHabilitados(on) {
   ['inf-usuario', 'inf-mes', 'btn-inf-actualizar'].forEach(i => { $(i).disabled = !on; });
