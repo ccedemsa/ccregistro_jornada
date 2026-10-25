@@ -758,7 +758,6 @@ async function llamarGestor(accion, extra, lectura) {
       r.error = 'No pudimos confirmar si se guardó. Mirá la pantalla actualizada antes de repetirlo.';
       refrescarVistaActual();
     }
-    toast(r.error, 'error');
   }
   return r;
 }
