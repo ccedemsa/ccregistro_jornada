@@ -137,6 +137,7 @@
   table.tabla.fija th:last-child { border-top-right-radius:14px; }
   table.tabla td.nombre { font-weight:700; }
   table.tabla td.acc button { margin:2px 8px 2px 0; }
+  table.tabla.compacta td { padding-top:6px; padding-bottom:6px; }
   table.tabla tr.baja td { opacity:.55; }
   table.tabla tr.baja td.acc { opacity:1; }
   .badge { font-family:var(--font-mono); font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); }
@@ -337,10 +338,17 @@
       <div class="sec-head">
         <div>
           <h3>Usuarios</h3>
-          <p class="sub">Empleados que pueden registrar jornadas. La baja bloquea el acceso; los registros anteriores se conservan.</p>
+          <p class="sub">Empleados que registran jornadas y gestores que administran la app. La baja bloquea el acceso; los registros anteriores se conservan.</p>
         </div>
         <button class="btn btn-sec btn-sm" id="btn-usr-refrescar">&#8635; Actualizar</button>
       </div>
+      <form class="alta-form" id="form-ges-alta" autocomplete="off">
+        <div class="campo">
+          <label for="ges-nuevo">Nuevo gestor</label>
+          <input type="text" id="ges-nuevo" placeholder="Ej: jgarcia" maxlength="30" autocapitalize="none" autocorrect="off" spellcheck="false" style="text-transform:lowercase;">
+        </div>
+        <button type="submit" class="btn" id="btn-ges-alta">Agregar gestor</button>
+      </form>
       <form class="alta-form" id="form-usr-alta" autocomplete="off">
         <div class="campo">
           <label for="usr-nuevo">Nuevo empleado</label>
@@ -350,11 +358,11 @@
       </form>
       <div class="cargando hidden" id="usr-cargando"><div class="spinner spinner-lg"></div></div>
       <div id="usr-tabla" class="hidden">
-        <table class="tabla">
-          <thead><tr><th>Nombre</th><th>Estado</th><th>Clave</th><th>Acciones</th></tr></thead>
+        <table class="tabla compacta">
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th>Clave</th><th>Acciones</th></tr></thead>
           <tbody id="usr-tbody"></tbody>
         </table>
-        <div class="vacio hidden" id="usr-vacio" style="margin-top:12px;">Todavía no hay empleados cargados.</div>
+        <div class="vacio hidden" id="usr-vacio" style="margin-top:12px;">Todavía no hay usuarios cargados.</div>
       </div>
     </div>
     <div id="sec-parametros" class="hidden">
@@ -1874,30 +1882,42 @@ $('fer-tbody').addEventListener('click', async ev => {
 let USUARIOS = [];
 let _usrCargando = false;
 
+const ICONO_PAPELERA = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+const ICONO_LLAVE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M17 6l3 3"/><path d="M14 9l2 2"/></svg>';
+const ICONO_REACTIVAR = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+
 function renderUsuarios() {
   const tb = $('usr-tbody');
   tb.innerHTML = '';
   $('usr-vacio').classList.toggle('hidden', USUARIOS.length > 0);
+  const yo = String(SESION.nombre || '').toLowerCase();
   USUARIOS.forEach(u => {
+    const esGestor = u.rol === 'GESTOR';
+    const soyYo = esGestor && u.nombre.toLowerCase() === yo;
     const tr = document.createElement('tr');
     if (!u.activo) tr.className = 'baja';
 
-    const tdN = document.createElement('td'); tdN.textContent = u.nombre; tdN.className = 'nombre';
+    const tdN = document.createElement('td'); tdN.textContent = u.nombre + (soyYo ? ' (vos)' : ''); tdN.className = 'nombre';
+    const tdT = document.createElement('td'); tdT.className = 'mono'; tdT.textContent = esGestor ? 'Gestor' : 'Empleado';
     const tdE = document.createElement('td');
     const bd = document.createElement('span'); bd.className = 'badge ' + (u.activo ? 'ok' : 'off'); bd.textContent = u.activo ? 'Activo' : 'De baja';
     tdE.appendChild(bd);
     const tdC = document.createElement('td'); tdC.className = 'mono'; tdC.textContent = u.tieneClave ? 'Modificada' : 'Inicial';
     const tdA = document.createElement('td'); tdA.className = 'acc';
 
-    const b1 = document.createElement('button');
-    b1.className = 'btn btn-sec btn-sm'; b1.dataset.nombre = u.nombre; b1.dataset.accion = u.activo ? 'baja' : 'alta';
-    b1.textContent = u.activo ? 'Dar de baja' : 'Reactivar';
-    const b2 = document.createElement('button');
-    b2.className = 'btn btn-sec btn-sm'; b2.dataset.nombre = u.nombre; b2.dataset.accion = 'reset';
-    b2.textContent = 'Resetear clave'; b2.title = 'Vuelve a la clave inicial (123456)';
-    tdA.appendChild(b1); tdA.appendChild(b2);
+    if (!soyYo) {                                           // uno mismo no se da de baja ni se resetea la clave
+      const mk = (accion, icono, titulo) => {
+        const b = document.createElement('button'); b.type = 'button';
+        b.className = 'btn-icono'; b.dataset.nombre = u.nombre; b.dataset.accion = accion;
+        b.title = titulo; b.setAttribute('aria-label', titulo + ' a ' + u.nombre); b.innerHTML = icono;
+        return b;
+      };
+      const b1 = u.activo ? mk('baja', ICONO_PAPELERA, 'Dar de baja') : mk('alta', ICONO_REACTIVAR, 'Reactivar');
+      const b2 = mk('reset', ICONO_LLAVE, 'Resetear clave (vuelve a 123456)');
+      tdA.appendChild(b1); tdA.appendChild(document.createTextNode(' ')); tdA.appendChild(b2);
+    }
 
-    tr.appendChild(tdN); tr.appendChild(tdE); tr.appendChild(tdC); tr.appendChild(tdA);
+    tr.appendChild(tdN); tr.appendChild(tdT); tr.appendChild(tdE); tr.appendChild(tdC); tr.appendChild(tdA);
     tb.appendChild(tr);
   });
 }
@@ -1936,20 +1956,34 @@ $('form-usr-alta').addEventListener('submit', async ev => {
   toast('Empleado agregado. Su clave inicial es 123456.');
 });
 
+$('form-ges-alta').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const nombre = $('ges-nuevo').value.trim().toLowerCase();
+  if (nombre.length < 3) { toast('Ingresá el usuario del gestor (mínimo 3 caracteres)', 'error'); return; }
+  if (!confirm('¿Agregar a ' + nombre + ' como gestor?\n\nVa a poder ver y modificar registros, autorizar horas, cerrar meses y administrar usuarios. Su clave inicial es 123456 y tendrá que cambiarla al ingresar.')) return;
+  const r = await conSpinner($('btn-ges-alta'), 'Agregando...', () => llamarGestor('gestor_usuario_alta', { nombre, rol: 'GESTOR' }));
+  if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
+  USUARIOS = r.usuarios; renderUsuarios();
+  $('ges-nuevo').value = '';
+  toast('Gestor agregado. Su clave inicial es 123456.');
+});
+
 $('usr-tbody').addEventListener('click', async ev => {
   const btn = ev.target.closest('button[data-accion]');
   if (!btn) return;
   const nombre = btn.dataset.nombre, accion = btn.dataset.accion;
+  const u0 = USUARIOS.find(x => x.nombre === nombre) || {};
+  const quien = u0.rol === 'GESTOR' ? 'Gestor' : 'Empleado';
   let msjConfirm, llamada, espera, ok;
   if (accion === 'baja') {
-    msjConfirm = `¿Dar de baja a ${nombre}?\n\nNo va a poder registrar nada desde ningún celular. Sus registros anteriores se conservan.`;
-    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: false }); espera = 'Procesando...'; ok = 'Empleado dado de baja';
+    msjConfirm = `¿Dar de baja a ${nombre}?\n\n${u0.rol === 'GESTOR' ? 'No va a poder ingresar a esta app.' : 'No va a poder registrar nada desde ningún celular.'} Sus registros anteriores se conservan.`;
+    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: false }); espera = ''; ok = quien + ' dado de baja';
   } else if (accion === 'alta') {
     msjConfirm = `¿Reactivar a ${nombre}?`;
-    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: true }); espera = 'Procesando...'; ok = 'Empleado reactivado';
+    llamada = () => llamarGestor('gestor_usuario_estado', { nombre, activo: true }); espera = ''; ok = quien + ' reactivado';
   } else {
     msjConfirm = `¿Resetear la clave de ${nombre}?\n\nVuelve a 123456 y tendrá que elegir una nueva en su próximo ingreso.`;
-    llamada = () => llamarGestor('gestor_usuario_reset_clave', { nombre }); espera = 'Reseteando...'; ok = 'Clave reseteada a 123456';
+    llamada = () => llamarGestor('gestor_usuario_reset_clave', { nombre }); espera = ''; ok = 'Clave reseteada a 123456';
   }
   if (!confirm(msjConfirm)) return;
   document.querySelectorAll('#usr-tbody button').forEach(b => b.disabled = true);
