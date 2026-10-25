@@ -143,7 +143,10 @@
   /* tabla con títulos fijos: al desplazar la página, los títulos quedan pegados al borde superior */
   .scroll-x.fija { overflow:visible; }
   table.tabla.fija { overflow:visible; border-collapse:separate; border-spacing:0; }
-  table.tabla.fija th { position:sticky; top:0; z-index:5; box-shadow:0 1px 0 var(--border); }
+  table.tabla.fija th { position:sticky; top:var(--fijo-alto, 0px); z-index:5; box-shadow:0 1px 0 var(--border); }
+  .inf-fijo { position:sticky; top:0; z-index:8; background:var(--bg); padding-bottom:2px; }
+  .inf-fijo.suelto { position:static; }
+  table.tabla tr.fila-suma td { font-weight:700; border-top:2px solid var(--border); background:var(--surface2); }
   table.tabla.fija th:first-child { border-top-left-radius:14px; }
   table.tabla.fija th:last-child { border-top-right-radius:14px; }
   table.tabla td.nombre { font-weight:700; }
@@ -1209,12 +1212,12 @@ function renderInforme(r) {
   const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'horas decimales y h:mm'; h4.appendChild(hs); cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
   const t1 = document.createElement('table'); t1.className = 'tabla';
-  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Comp.</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
+  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
   const b1 = document.createElement('tbody');
   r.totales.forEach(t => {
     const tr = document.createElement('tr');
     celda(tr, t.usuario, 'nombre'); celda(tr, String(t.dias), 'num'); celda(tr, t.ausentes ? String(t.ausentes) : '—', 'num'); celdaHoras(tr, t.total);
-    celdaHoras(tr, t.normal); celdaHoras(tr, t.comp || 0); celdaHoras(tr, t.c50); celdaHoras(tr, t.c100); celdaHoras(tr, t.faltante);
+    celdaHoras(tr, t.normal + (t.comp || 0)); celdaHoras(tr, t.c50); celdaHoras(tr, t.c100); celdaHoras(tr, t.faltante);
     b1.appendChild(tr);
   });
   t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
@@ -1245,6 +1248,10 @@ function renderInforme(r) {
     }
   }
   cab.appendChild(acc); cont.appendChild(cab);
+  // bloque fijo: totales + encabezado del detalle quedan arriba al bajar (y los títulos del detalle debajo)
+  const fijo = document.createElement('div'); fijo.className = 'inf-fijo';
+  cont.insertBefore(fijo, h4); fijo.appendChild(h4); fijo.appendChild(sx1); fijo.appendChild(cab);
+  cab.style.margin = '12px 0 8px';
 
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
@@ -1325,11 +1332,24 @@ function renderInforme(r) {
     tr.appendChild(tdA);
     body.appendChild(tr);
   });
+  if (filas.length && !(INF_SOLO_CAMBIOS && !INF_EDIT)) {          // fila de suma: coincide con los totales de arriba (Normal incluye la compensación)
+    const s = { total: 0, normal: 0, comp: 0, c50: 0, c100: 0, faltante: 0 };
+    filas.forEach(d => { if (d.ausente) return; Object.keys(s).forEach(k => { s[k] += d[k] || 0; }); });
+    const tr = document.createElement('tr'); tr.className = 'fila-suma';
+    const t0 = document.createElement('td'); t0.colSpan = 4; t0.textContent = 'Suma de las filas mostradas'; tr.appendChild(t0);
+    const cel = (min, span) => { const td = document.createElement('td'); td.className = 'num'; if (span) td.colSpan = span; td.textContent = fmtHM(min); tr.appendChild(td); return td; };
+    cel(s.total);
+    cel(s.normal + s.comp, 2).title = 'Normal + compensación';
+    cel(s.c50); cel(s.c100); cel(s.faltante);
+    tr.appendChild(document.createElement('td'));
+    body.appendChild(tr);
+  }
   if (!filas.length) {
     const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 11; td.className = 'det'; td.style.textAlign = 'center';
     td.textContent = 'No hay filas con cambios por revisar.'; tr.appendChild(td); body.appendChild(tr);
   }
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
+  ajustarBloqueFijo();
   if (INF_EDIT) {                                   // casilla en el título de 50% / 100% / Faltante: marca o desmarca toda la columna
     const ths = tb.querySelectorAll('thead th');
     [['c50', 7], ['c100', 8], ['faltante', 9]].forEach(([campo, i]) => {
@@ -1340,6 +1360,19 @@ function renderInforme(r) {
     refrescarTodos();
   }
 }
+
+// El bloque de totales queda fijo solo si deja lugar para el detalle (hasta ~55% de la altura de la ventana); si no, queda suelto como antes
+function ajustarBloqueFijo() {
+  const f = document.querySelector('#inf-lista .inf-fijo');
+  if (!f) return;
+  f.classList.remove('suelto');
+  const alto = f.offsetHeight;
+  const ok = alto <= window.innerHeight * 0.55;
+  f.classList.toggle('suelto', !ok);
+  const tabla = document.querySelector('#inf-lista table.fija');
+  if (tabla) tabla.style.setProperty('--fijo-alto', ok ? alto + 'px' : '0px');
+}
+window.addEventListener('resize', ajustarBloqueFijo);
 
 // Estado de las casillas de título (marcadas / intermedio / vacías) según las de cada día
 function refrescarTodos() {
