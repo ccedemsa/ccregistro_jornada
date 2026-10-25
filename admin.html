@@ -534,6 +534,7 @@ let SESION = { token: null, nombre: '', debeCambiar: false };
 function toast(msg, tipo = 'success', ms = 3500) {
   const t = $('toast');
   t.textContent = msg;
+  if (/^No pudimos confirmar/.test(msg)) ms = Math.max(ms, 9000);
   t.className = 'toast ' + tipo + ' show';
   clearTimeout(toast._t);
   toast._t = setTimeout(() => t.classList.remove('show'), ms);
@@ -703,6 +704,10 @@ const VISTAS = ['registros', 'informe', 'usuarios', 'parametros', 'feriados'];
 
 function irA(vista) {
   if (VISTAS.indexOf(vista) < 0) vista = 'registros';
+  if (VISTA_ACTUAL === 'informe' && vista !== 'informe' && infHayCambiosSinGuardar()) {
+    if (!confirm(MSG_SIN_GUARDAR)) { cerrarMenu(); return; }
+    INF_EDIT = false; filtrosInformeHabilitados(true);
+  }
   VISTA_ACTUAL = vista;
   VISTAS.forEach(v => $('sec-' + v).classList.toggle('hidden', v !== vista));
   VISTAS_TAB.forEach(v => $('tab-' + v).classList.toggle('active', v === vista));
@@ -744,8 +749,49 @@ async function llamarGestor(accion, extra, lectura) {
   const payload = Object.assign({ accion, token: SESION.token }, extra || {});
   const r = lectura ? await llamarLectura(payload) : await llamar(payload);
   if (r.error && /Sesión vencida/.test(r.error)) { cerrarLocal(); toast('La sesión venció. Ingresá de nuevo.', 'error'); }
+  // Escritura sin respuesta clara (corte, timeout...): puede haberse guardado o no. Se avisa y se muestra el estado real.
+  if (!lectura && r.error && r.transitorio && SESION.token) {
+    r.incierto = true;
+    if (accion === 'gestor_autorizaciones_guardar') {
+      r.error = 'No pudimos confirmar si se guardó. Tus tildes siguen en pantalla: volvé a tocar Guardar (repetirlo es seguro).';
+    } else {
+      r.error = 'No pudimos confirmar si se guardó. Mirá la pantalla actualizada antes de repetirlo.';
+      refrescarVistaActual();
+    }
+    toast(r.error, 'error');
+  }
   return r;
 }
+
+// Recarga en silencio lo que se está viendo (sin tocar lo que el gestor tiene escrito en un modal ni tildes sin guardar)
+function refrescarVistaActual() {
+  try {
+    if (VISTA_ACTUAL === 'informe') { if (!INF_EDIT) cargarInforme(true); }
+    else if (VISTA_ACTUAL === 'registros') { REG_INICIADO = false; cargarRegistros(); }
+    else if (VISTA_ACTUAL === 'usuarios') cargarUsuarios();
+    else if (VISTA_ACTUAL === 'feriados') cargarFeriados();
+    else if (VISTA_ACTUAL === 'parametros') cargarParametros(false);
+  } catch (e) {}
+}
+
+// Tildes de autorización sin guardar (modo Editar del Informe)
+function infHayCambiosSinGuardar() {
+  if (!INF_EDIT) return false;
+  const lista = $('inf-lista');
+  if (!lista) return false;
+  let sucio = false;
+  lista.querySelectorAll('.aut-cel').forEach(w => {
+    const chk = w.querySelector('input[type="checkbox"]'), inp = w.querySelector('input.aut-min');
+    if (!chk || !inp) return;
+    if ((chk.checked ? '1' : '0') !== chk.dataset.iniChk) sucio = true;
+    else if (chk.checked && parseMin(inp.value) !== parseInt(inp.dataset.iniMin, 10)) sucio = true;
+  });
+  return sucio;
+}
+const MSG_SIN_GUARDAR = 'Tenés autorizaciones tildadas sin guardar. Si salís se pierden. ¿Salir igual?';
+window.addEventListener('beforeunload', ev => {
+  if (infHayCambiosSinGuardar()) { ev.preventDefault(); ev.returnValue = ''; return ''; }
+});
 
 // ─── registros diarios ───
 let REG_CARGANDO = false;
@@ -1562,7 +1608,15 @@ $('mod-aus-ok').addEventListener('click', async () => {
   });
 });
 
-async function cargarInforme() {
+let INF_ULT_MES = '', INF_ULT_USU = '';
+async function cargarInforme(sinPreguntar) {
+  if (sinPreguntar !== true && infHayCambiosSinGuardar()) {
+    if (!confirm(MSG_SIN_GUARDAR)) {              // se queda donde estaba: se restauran los filtros
+      if (INF_ULT_MES) $('inf-mes').value = INF_ULT_MES;
+      $('inf-usuario').value = INF_ULT_USU;
+      return;
+    }
+  }
   if (INF_CARGANDO) { INF_PENDIENTE = true; return; }
   if (!$('inf-mes').value) poblarMeses('inf-mes');
   INF_CARGANDO = true;
@@ -1581,12 +1635,13 @@ async function cargarInforme() {
     (r.empleados || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
     sel.value = (r.empleados || []).indexOf(actual) >= 0 ? actual : '';
     renderInforme(r);
+    INF_ULT_MES = $('inf-mes').value; INF_ULT_USU = $('inf-usuario').value;
     INF_INICIADO = true;
   } finally {
     INF_CARGANDO = false;
     btn.disabled = false; btn.innerHTML = original;
     $('inf-cargando').classList.add('hidden');
-    if (INF_PENDIENTE) { INF_PENDIENTE = false; cargarInforme(); }
+    if (INF_PENDIENTE) { INF_PENDIENTE = false; cargarInforme(true); }
   }
 }
 $('form-inf').addEventListener('submit', ev => { ev.preventDefault(); cargarInforme(); });
