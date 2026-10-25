@@ -74,6 +74,9 @@
 
   /* ─── CONTENIDO ─── */
   .main { padding:24px 20px; max-width:1680px; margin:0 auto; }
+  .main.ancho { max-width:none; }
+  table.tabla td.obs { width:260px; }
+  table.tabla .obs-txt { display:block; width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-family:var(--font-mono); font-size:12px; cursor:default; }
   #sec-usuarios, #sec-parametros, #sec-feriados { max-width:1100px; }
   .main h3 { font-size:20px; font-weight:800; margin-bottom:4px; }
   .sec-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
@@ -745,6 +748,7 @@ function irA(vista) {
     INF_EDIT = false; filtrosInformeHabilitados(true);
   }
   VISTA_ACTUAL = vista;
+  document.querySelector('.main').classList.toggle('ancho', vista === 'informe');
   VISTAS.forEach(v => $('sec-' + v).classList.toggle('hidden', v !== vista));
   VISTAS_TAB.forEach(v => $('tab-' + v).classList.toggle('active', v === vista));
   $('btn-engranaje').classList.toggle('active', VISTAS_TAB.indexOf(vista) < 0);
@@ -1333,7 +1337,7 @@ function renderInforme(r) {
 
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Jornada</th><th>Total</th><th>Normal</th><th>Comp.</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Jornada</th><th>Total</th><th>Normal</th><th>Comp.</th><th>50%</th><th>100%</th><th>Faltante</th><th>Observaciones</th><th>Acciones</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
   const filas = INF_SOLO_CAMBIOS && !INF_EDIT ? r.filas.filter(d => d.estado === 'cambio') : r.filas;
@@ -1391,6 +1395,10 @@ function renderInforme(r) {
       tr.appendChild(td);
     });
 
+    const tdO = document.createElement('td'); tdO.className = 'obs';
+    if (d.obs) { const sp = document.createElement('span'); sp.className = 'obs-txt'; sp.textContent = d.obs; tdO.title = d.obs; tdO.appendChild(sp); }
+    tr.appendChild(tdO);
+
     const tdA = document.createElement('td'); tdA.className = 'acc';
     if (!INF_EDIT && !cerrado) {
       if (d.ausente) {
@@ -1419,11 +1427,11 @@ function renderInforme(r) {
     cel(s.total);
     cel(s.normal + s.comp, 2).title = 'Normal + compensación';
     cel(s.c50); cel(s.c100); cel(s.faltante);
-    tr.appendChild(document.createElement('td'));
+    tr.appendChild(document.createElement('td')); tr.appendChild(document.createElement('td'));
     body.appendChild(tr);
   }
   if (!filas.length) {
-    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 11; td.className = 'det'; td.style.textAlign = 'center';
+    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 12; td.className = 'det'; td.style.textAlign = 'center';
     td.textContent = 'No hay filas con cambios por revisar.'; tr.appendChild(td); body.appendChild(tr);
   }
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
