@@ -1464,37 +1464,8 @@ async function cargarHistorial() {
     // los días marcados ausentes por el gestor se muestran como una línea más
     (data.ausentes || []).forEach(f => { (data.registros = data.registros || []).push({ tipo: 'AUSENTE', fechaHoraInicio: f + ' 00:00:00' }); });
     if (data.registros && data.registros.length > 0) {
-      // Filtrar solo mes actual y anterior
-      const now = new Date();
-      const mesActual = now.getMonth();
-      const anioActual = now.getFullYear();
-      
-      const filtrados = data.registros.filter(r => {
-        const fecha = r.fechaHoraInicio || r.fechaHora;
-        if (!fecha) return true; // Incluir si no tiene fecha
-        
-        // Parsear fecha robustamente
-        let d;
-        if (fecha.includes('T')) {
-          d = new Date(fecha);
-        } else {
-          d = new Date(fecha.replace(' ', 'T'));
-        }
-        
-        if (isNaN(d.getTime())) return true; // Incluir si fecha es inválida
-        
-        const mesReg = d.getMonth();
-        const anioReg = d.getFullYear();
-        
-        // Mismo año y mes actual
-        if (anioReg === anioActual && mesReg === mesActual) return true;
-        // Mismo año y mes anterior
-        if (anioReg === anioActual && mesReg === mesActual - 1) return true;
-        // Año anterior y diciembre (si estamos en enero)
-        if (mesActual === 0 && anioReg === anioActual - 1 && mesReg === 11) return true;
-        
-        return false;
-      });
+      // El servidor ya manda solo el mes en curso (y el anterior hasta el día 2)
+      const filtrados = data.registros;
       
       if (filtrados.length > 0) {
         // Ordenar por fecha, más reciente primero
