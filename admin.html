@@ -1209,12 +1209,12 @@ function renderInforme(r) {
   const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'horas decimales y h:mm'; h4.appendChild(hs); cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
   const t1 = document.createElement('table'); t1.className = 'tabla';
-  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
+  t1.innerHTML = '<thead><tr><th>Empleado</th><th>Días trabajados</th><th>Días ausente</th><th>Total trabajado</th><th>Normal</th><th>Comp.</th><th>Extra 50%</th><th>Extra 100%</th><th>Faltante sin cubrir</th></tr></thead>';
   const b1 = document.createElement('tbody');
   r.totales.forEach(t => {
     const tr = document.createElement('tr');
     celda(tr, t.usuario, 'nombre'); celda(tr, String(t.dias), 'num'); celda(tr, t.ausentes ? String(t.ausentes) : '—', 'num'); celdaHoras(tr, t.total);
-    celdaHoras(tr, t.normal); celdaHoras(tr, t.c50); celdaHoras(tr, t.c100); celdaHoras(tr, t.faltante);
+    celdaHoras(tr, t.normal); celdaHoras(tr, t.comp || 0); celdaHoras(tr, t.c50); celdaHoras(tr, t.c100); celdaHoras(tr, t.faltante);
     b1.appendChild(tr);
   });
   t1.appendChild(b1); sx1.appendChild(t1); cont.appendChild(sx1);
@@ -1248,7 +1248,7 @@ function renderInforme(r) {
 
   const sx = document.createElement('div'); sx.className = 'scroll-x fija';
   const tb = document.createElement('table'); tb.className = 'tabla fija compacta';
-  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Jornada</th><th>Total</th><th>Normal</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
+  tb.innerHTML = '<thead><tr><th>Fecha</th><th>Empleado</th><th>Tipo de día</th><th>Jornada</th><th>Total</th><th>Normal</th><th>Comp.</th><th>50%</th><th>100%</th><th>Faltante</th><th>Acciones</th></tr></thead>';
   const body = document.createElement('tbody');
   let previo = null;
   const filas = INF_SOLO_CAMBIOS && !INF_EDIT ? r.filas.filter(d => d.estado === 'cambio') : r.filas;
@@ -1281,7 +1281,7 @@ function renderInforme(r) {
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     if (d.estado === 'cambio') {
       const bc = badge('Cambió', 'cambio');
-      const lin = (o) => '50%: ' + fmtHM(o.c50) + ', 100%: ' + fmtHM(o.c100) + ', faltante: ' + fmtHM(o.faltante);
+      const lin = (o) => (o.comp ? 'comp.: ' + fmtHM(o.comp) + ', ' : '') + '50%: ' + fmtHM(o.c50) + ', 100%: ' + fmtHM(o.c100) + ', faltante: ' + fmtHM(o.faltante);
       bc.title = 'Autorizado el ' + d.aut.cuando + ' por ' + d.aut.gestor + ' (' + lin(d.aut) + ').\nCuando se autorizó el sistema calculaba: ' + lin(d.snap) + '.\nAhora calcula: ' + lin(d.calc) + '.\nNo cuenta hasta que lo confirmes de nuevo.';
       tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(bc);
     }
@@ -1291,9 +1291,10 @@ function renderInforme(r) {
     celda(tr, lapsos || (d.fueraDeMes ? '' : 'Sin registro'), d.tieneRegistro ? 'num' : 'det');
 
     // total y normal (lo que cuenta)
-    ['total', 'normal'].forEach(c => {
+    ['total', 'normal', 'comp'].forEach(c => {
       const td = document.createElement('td'); td.className = 'num';
-      if (d.ausente && d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = fmtHM(d[c]);
+      if (d.ausente && d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = fmtHM(d[c] || 0);
+      if (c === 'comp' && d.comp) td.title = 'Faltó completar la jornada y se compensó con ' + fmtHM(d.comp) + ' de extra del mismo día: cuenta como horas normales.';
       tr.appendChild(td);
     });
     // 50%, 100% y faltante
@@ -1325,7 +1326,7 @@ function renderInforme(r) {
     body.appendChild(tr);
   });
   if (!filas.length) {
-    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 10; td.className = 'det'; td.style.textAlign = 'center';
+    const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 11; td.className = 'det'; td.style.textAlign = 'center';
     td.textContent = 'No hay filas con cambios por revisar.'; tr.appendChild(td); body.appendChild(tr);
   }
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
@@ -1449,12 +1450,12 @@ function armarImpresion(r) {
   res.appendChild(el('p', sub, 'pr-sub'));
   res.appendChild(el('h2', filtro ? 'Totales de ' + filtro : 'Totales del mes'));
   const t = el('table');
-  t.innerHTML = '<thead><tr><th>Empleado</th><th class="n">Días trab.</th><th class="n">Ausentes</th><th class="n">Total (h)</th><th class="n">Normal (h)</th><th class="n">Extra 50% (h)</th><th class="n">Extra 100% (h)</th><th class="n">Faltante sin cubrir (h)</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Empleado</th><th class="n">Días trab.</th><th class="n">Ausentes</th><th class="n">Total (h)</th><th class="n">Normal (h)</th><th class="n">Comp. (h)</th><th class="n">Extra 50% (h)</th><th class="n">Extra 100% (h)</th><th class="n">Faltante sin cubrir (h)</th></tr></thead>';
   const tb = el('tbody');
   r.totales.forEach(x => {
     const tr = el('tr');
     tr.appendChild(el('td', x.usuario)); tr.appendChild(el('td', String(x.dias), 'n')); tr.appendChild(el('td', x.ausentes ? String(x.ausentes) : '—', 'n'));
-    [x.total, x.normal, x.c50, x.c100, x.faltante].forEach((m, i) => celdaH(tr, m, i === 0));
+    [x.total, x.normal, x.comp || 0, x.c50, x.c100, x.faltante].forEach((m, i) => celdaH(tr, m, i === 0));
     tb.appendChild(tr);
   });
   t.appendChild(tb); res.appendChild(t);
@@ -1466,7 +1467,7 @@ function armarImpresion(r) {
     const sec = el('div', null, 'pr-emp');
     sec.appendChild(el('h2', x.usuario + ' · ' + mesTxt));
     const t2 = el('table');
-    t2.innerHTML = '<thead><tr><th>Fecha</th><th>Tipo de día</th><th>Jornada</th><th class="n">Total</th><th class="n">Normal</th><th class="n">50%</th><th class="n">100%</th><th class="n">Faltante</th></tr></thead>';
+    t2.innerHTML = '<thead><tr><th>Fecha</th><th>Tipo de día</th><th>Jornada</th><th class="n">Total</th><th class="n">Normal</th><th class="n">Comp.</th><th class="n">50%</th><th class="n">100%</th><th class="n">Faltante</th></tr></thead>';
     const b2 = el('tbody');
     let sinAut = 0;
     r.filas.filter(d => d.usuario === x.usuario && (d.tieneRegistro || d.ausente)).forEach(d => {
@@ -1474,20 +1475,20 @@ function armarImpresion(r) {
       tr.appendChild(el('td', fmtDiaCorto(d.fecha)));
       tr.appendChild(el('td', (TIPO_DIA_ROT[d.tipoDia] || d.tipoDia) + (d.feriado ? ' (' + d.feriado + ')' : '')));
       if (d.ausente) {
-        const td = el('td', 'Ausente: ' + d.ausente.motivo); td.colSpan = 6; tr.appendChild(td);
+        const td = el('td', 'Ausente: ' + d.ausente.motivo); td.colSpan = 7; tr.appendChild(td);
       } else {
         tr.appendChild(el('td', d.lapsos.concat(d.pend.map(pd => pd.lapso)).join(' / ')));
-        [d.total, d.normal, d.c50, d.c100, d.faltante].forEach(m => celdaH(tr, m, false));
+        [d.total, d.normal, d.comp || 0, d.c50, d.c100, d.faltante].forEach(m => celdaH(tr, m, false));
         sinAut += Math.max(0, d.calc.c50 - d.c50) + Math.max(0, d.calc.c100 - d.c100);
       }
       b2.appendChild(tr);
     });
     const tot = el('tr', null, 'pr-tot');
     tot.appendChild(el('td', 'Total del mes')); tot.appendChild(el('td', '')); tot.appendChild(el('td', ''));
-    [x.total, x.normal, x.c50, x.c100, x.faltante].forEach(m => celdaH(tot, m, true));
+    [x.total, x.normal, x.comp || 0, x.c50, x.c100, x.faltante].forEach(m => celdaH(tot, m, true));
     b2.appendChild(tot);
     t2.appendChild(b2); sec.appendChild(t2);
-    sec.appendChild(el('p', 'Faltante: horas que faltaron para completar la jornada mínima y que no fueron cubiertas con una autorización.', 'pr-nota'));
+    sec.appendChild(el('p', 'Comp.: faltante del día cubierto con horas extra al 50% del mismo día (cuenta como horas normales). Faltante: horas que faltaron para completar la jornada mínima y que no fueron cubiertas con una autorización.', 'pr-nota'));
     if (sinAut) sec.appendChild(el('p', 'Extras calculadas sin autorizar (no incluidas): ' + fmtDec(sinAut) + ' h.', 'pr-nota'));
     area.appendChild(sec);
   });
