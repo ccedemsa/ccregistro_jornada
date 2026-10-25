@@ -531,12 +531,12 @@ const $ = id => document.getElementById(id);
 let SESION = { token: null, nombre: '', debeCambiar: false };
 
 // ─── utilidades ───
-function toast(msg, tipo = 'success') {
+function toast(msg, tipo = 'success', ms = 3500) {
   const t = $('toast');
   t.textContent = msg;
   t.className = 'toast ' + tipo + ' show';
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove('show'), 3500);
+  toast._t = setTimeout(() => t.classList.remove('show'), ms);
 }
 
 function mostrar(vista) {
@@ -548,9 +548,11 @@ function leerToken()     { try { return sessionStorage.getItem(TOKEN_KEY); } cat
 function borrarToken()   { try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {} }
 
 // Todas las llamadas son POST (el token nunca viaja en la URL). Timeout de 30 s.
-async function llamar(payload) {
+// Un intento: devuelve la respuesta del servidor, o { error, transitorio: true } si fue un problema de conexión
+async function llamarUnaVez(payload, ms) {
+  if (navigator.onLine === false) return { error: 'Sin conexión a internet', transitorio: true };
   const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), 30000);
+  const to = setTimeout(() => ctrl.abort(), ms);
   try {
     const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST', mode: 'cors',
@@ -558,12 +560,53 @@ async function llamar(payload) {
       body: JSON.stringify(payload),
       signal: ctrl.signal
     });
-    return await resp.json();
+    let data = null;
+    try { data = await resp.json(); } catch (e) { data = null; }
+    if (!data) return { error: 'El servidor respondió algo inesperado. Probá de nuevo.', transitorio: true };
+    if (data.codigo === 'REINTENTAR') data.transitorio = true;       // servidor ocupado
+    return data;
   } catch (e) {
-    return { error: e.name === 'AbortError' ? 'El servidor tardó demasiado. Probá de nuevo.' : 'Error de conexión con el servidor' };
+    return { error: e.name === 'AbortError' ? 'El servidor tardó demasiado. Probá de nuevo.' : 'Error de conexión con el servidor', transitorio: true };
   } finally {
     clearTimeout(to);
   }
+}
+
+// Escrituras: un solo intento (si no se puede confirmar, no se repite solo: podría haberse guardado igual)
+function llamar(payload) { return llamarUnaVez(payload, 30000); }
+
+// Lecturas: no cambian nada, así que se reintentan solas. 30 s el primer intento, 20 s los siguientes, con pausa y aviso.
+const LECTURA_TIMEOUTS = [30000, 20000, 20000];
+const LECTURA_PAUSAS   = [3000, 6000];
+const _esperar = ms => new Promise(r => setTimeout(r, ms));
+
+function estadoRed(txt) {
+  let el = $('estado-red');
+  if (!txt) { if (el) el.classList.add('hidden'); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'estado-red';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:150;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 18px;font-family:var(--font-mono);font-size:13px;display:flex;align-items:center;gap:10px;color:var(--text);';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span class="spinner"></span> ';
+  el.appendChild(document.createTextNode(txt));
+  el.classList.remove('hidden');
+}
+
+async function llamarLectura(payload) {
+  const N = LECTURA_TIMEOUTS.length;
+  let r = null;
+  try {
+    for (let i = 0; i < N; i++) {
+      if (i > 0) {
+        estadoRed('Sin respuesta. Reintentando (' + (i + 1) + ' de ' + N + ')...');
+        await _esperar(LECTURA_PAUSAS[i - 1]);
+      }
+      r = await llamarUnaVez(payload, LECTURA_TIMEOUTS[i]);
+      if (!r.transitorio) break;
+    }
+  } finally { estadoRed(''); }
+  return r;
 }
 
 // Botón con spinner mientras espera
@@ -697,8 +740,9 @@ document.addEventListener('click', ev => {
 document.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => irA(b.dataset.vista)));
 
 // Llamada autenticada: agrega el token y, si la sesión venció, vuelve al login
-async function llamarGestor(accion, extra) {
-  const r = await llamar(Object.assign({ accion, token: SESION.token }, extra || {}));
+async function llamarGestor(accion, extra, lectura) {
+  const payload = Object.assign({ accion, token: SESION.token }, extra || {});
+  const r = lectura ? await llamarLectura(payload) : await llamar(payload);
   if (r.error && /Sesión vencida/.test(r.error)) { cerrarLocal(); toast('La sesión venció. Ingresá de nuevo.', 'error'); }
   return r;
 }
@@ -878,7 +922,7 @@ async function cargarRegistros() {
   $('reg-lista').innerHTML = '';
   $('reg-resumen').classList.add('hidden');
   try {
-    const r = await llamarGestor('gestor_registros', { desde, hasta, usuario: $('reg-usuario').value });
+    const r = await llamarGestor('gestor_registros', { desde, hasta, usuario: $('reg-usuario').value }, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     llenarEmpleados(r.empleados);
     renderRegistros(r.registros || [], !!r.truncado);
@@ -1530,7 +1574,7 @@ async function cargarInforme() {
   $('inf-resumen').classList.add('hidden');
   try {
     INF_EDIT = false;
-    const r = await llamarGestor('gestor_informe', { mes: $('inf-mes').value, usuario: $('inf-usuario').value });
+    const r = await llamarGestor('gestor_informe', { mes: $('inf-mes').value, usuario: $('inf-usuario').value }, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     const sel = $('inf-usuario'), actual = sel.value;
     sel.innerHTML = '<option value="">Todos</option>';
@@ -1641,7 +1685,7 @@ async function cargarParametros(forzar) {
   $('par-cargando').classList.remove('hidden');
   $('par-contenido').classList.add('hidden');
   try {
-    const r = await llamarGestor('gestor_parametros_leer');
+    const r = await llamarGestor('gestor_parametros_leer', null, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     parCargarDesde(r);
     $('par-contenido').classList.remove('hidden');
@@ -1710,7 +1754,7 @@ async function cargarFeriados() {
   $('fer-cargando').classList.remove('hidden');
   $('fer-tabla').classList.add('hidden');
   try {
-    const r = await llamarGestor('gestor_feriados_listar');
+    const r = await llamarGestor('gestor_feriados_listar', null, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
     FER_LISTA = r.feriados || [];
     $('fer-tabla').classList.remove('hidden');
@@ -1811,7 +1855,7 @@ async function cargarUsuarios() {
   _usrCargando = true;
   $('usr-cargando').classList.remove('hidden');
   $('usr-tabla').classList.add('hidden');
-  const r = await llamarGestor('gestor_usuarios_listar');
+  const r = await llamarGestor('gestor_usuarios_listar', null, true);
   _usrCargando = false;
   $('usr-cargando').classList.add('hidden');
   if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
@@ -1867,7 +1911,12 @@ $('usr-tbody').addEventListener('click', async ev => {
 async function init() {
   const token = leerToken();
   if (!token) { cerrarLocal(); return; }
-  const r = await llamar({ accion: 'gestor_sesion', token });
+  const r = await llamarLectura({ accion: 'gestor_sesion', token });
+  if (r.error && r.transitorio) {              // problema de conexión: no se descarta la sesión, se puede reintentar recargando
+    mostrar('login');
+    toast('No se pudo verificar la sesión. Verificá la conexión y recargá la página.', 'error', 6000);
+    return;
+  }
   if (r.error) { cerrarLocal(); if (/Sesión vencida/.test(r.error)) toast('La sesión venció. Ingresá de nuevo.', 'error'); return; }
   SESION = { token, nombre: r.nombre, debeCambiar: !!r.debeCambiar };
   if (SESION.debeCambiar) irACambioClave(true); else entrarALaApp();
