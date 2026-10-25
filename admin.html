@@ -184,6 +184,7 @@
   table.tabla .aut-cel input.aut-min { width:64px; padding:3px 6px; font-size:12.5px; text-align:center; border-radius:6px; }
   table.tabla .aut-cel input.aut-min:disabled { opacity:.45; }
   table.tabla .aut-cel input.aut-min.error { border-color:var(--danger); }
+  .badge.info { color:var(--text); border-color:var(--muted); }
   .badge.aus { color:var(--violeta); border-color:rgba(177,140,255,.45); }
 
   .tema { position:relative; width:42px; height:22px; border-radius:11px; border:1px solid var(--border); background:var(--surface2); cursor:pointer; padding:0; flex:none; }
@@ -761,7 +762,7 @@ function renderRegistros(regs, truncado) {
     if (r.editado) {
       const e = r.editado;
       const orig = e.inicioOriginal ? ' Original: ' + e.inicioOriginal.substring(8, 10) + '/' + e.inicioOriginal.substring(5, 7) + ' ' + hhmm(e.inicioOriginal) + ' a ' + (e.finOriginal ? hhmm(e.finOriginal) : 'sin cerrar') + '.' : '';
-      const be = badge(e.alta ? 'Cargada' : 'Editado', 'aus');
+      const be = badge(e.alta ? 'Cargada' : 'Editado', 'info');
       if (e.alta && e.veces === 1) be.title = 'Cargada por el gestor ' + e.gestor + ' (' + e.cuando + '). Motivo: ' + e.motivo.replace(/^ALTA: /, '') + '.'; else be.title = 'Editado por ' + e.gestor + ' (' + e.cuando + ')' + (e.veces > 1 ? ', ' + e.veces + ' veces' : '') + '. Motivo: ' + e.motivo + '.' + orig;
       tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(be);
     }
@@ -1078,7 +1079,13 @@ function renderInforme(r) {
     if (d.tipoDia !== 'LUN-VIE') tdT.className = 'finde';                 // sábado, domingo y feriado: naranja (si el día no está atenuado)
     if (d.feriado) tdT.title = d.feriado;
     d.pend.forEach(pd => { tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(badge(pd.marca, 'warn')); });
-    if (d.editado) { tdT.appendChild(document.createTextNode(' ')); const be = badge('Editado', 'aus'); be.title = 'Alguna jornada de este día fue editada o cargada por el gestor (ver Registros diarios)'; tdT.appendChild(be); }
+    if (d.editado) {
+      tdT.appendChild(document.createTextNode(' '));
+      const alta = d.editado === 'alta';
+      const be = badge(alta ? 'Cargada' : 'Editado', 'info');
+      be.title = alta ? 'La jornada de este día fue cargada por el gestor (ver Registros diarios)' : 'Alguna jornada de este día fue editada por el gestor (ver Registros diarios)';
+      tdT.appendChild(be);
+    }
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     if (d.estado === 'cambio') {
       const bc = badge('Cambió', 'cambio');
@@ -1113,15 +1120,15 @@ function renderInforme(r) {
         bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
         bq.title = 'Quitar ausente (' + d.ausente.motivo + ')'; bq.setAttribute('aria-label', 'Quitar ausente'); bq.innerHTML = ICONO_AUSENTE; tdA.appendChild(bq);
       } else if (!d.futuro && !d.fueraDeMes) {
-        if (!d.tieneRegistro) {
-          const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'btn-icono';
-          bc.dataset.crear = '1'; bc.dataset.usuario = d.usuario; bc.dataset.fecha = d.fecha;
-          bc.title = 'Agregar jornada'; bc.setAttribute('aria-label', 'Agregar jornada'); bc.innerHTML = ICONO_MAS; tdA.appendChild(bc);
-          tdA.appendChild(document.createTextNode(' '));
-        }
         const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
         bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
         bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
+        if (!d.tieneRegistro) {
+          tdA.appendChild(document.createTextNode(' '));
+          const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'btn-icono';
+          bc.dataset.crear = '1'; bc.dataset.usuario = d.usuario; bc.dataset.fecha = d.fecha;
+          bc.title = 'Agregar jornada'; bc.setAttribute('aria-label', 'Agregar jornada'); bc.innerHTML = ICONO_MAS; tdA.appendChild(bc);
+        }
       }
     }
     tr.appendChild(tdA);
