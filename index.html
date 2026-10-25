@@ -8,8 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="Jornada">
 <meta name="theme-color" content="#0d0f14">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-512.png">
 <title>Registro de Jornada</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1454,12 +1452,11 @@ async function cargarHistorial() {
   if (btn) { btn.disabled = true; btn.innerHTML = 'Actualizando...'; }
   cont.innerHTML = '<div class="empty-state"><div class="icon"><div class="spinner spinner-lg"></div></div><div>Cargando...</div></div>';
   try {
-    const url = `${STATE.sheetUrl}?accion=historial&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
     const ctrlH = new AbortController();
     const toH = setTimeout(() => ctrlH.abort(), 30000);
     let data;
     try {
-      const resp = await fetch(url, { method: 'GET', mode: 'cors', signal: ctrlH.signal });
+      const resp = await fetch(STATE.sheetUrl, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ accion: 'historial', usuario: STATE.usuario, userId: STATE.userId }), signal: ctrlH.signal });
       data = await resp.json();
     } finally { clearTimeout(toH); }
 
@@ -1660,8 +1657,7 @@ async function sincronizarEstado(opts) {
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), 15000);
   try {
-    const url = `${STATE.sheetUrl}?accion=estado_jornada&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
-    const resp = await fetch(url, { method: 'GET', mode: 'cors', signal: ctrl.signal });
+    const resp = await fetch(STATE.sheetUrl, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ accion: 'estado_jornada', usuario: STATE.usuario, userId: STATE.userId }), signal: ctrl.signal });
     const data = await resp.json();
     if (data.codigo === 'NO_AUTORIZADO') { sesionInvalida(); return false; }
     if (data.error || data.ok !== true) throw new Error(data.error || 'Respuesta inválida');
