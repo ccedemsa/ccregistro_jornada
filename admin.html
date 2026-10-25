@@ -86,6 +86,17 @@
   .filtros .campo { min-width:150px; }
   .filtros .campo.ancho { min-width:340px; }
   .filtros .campo.ancho select { width:100%; }
+  .ms-wrap { position:relative; }
+  .ms-btn { width:100%; text-align:left; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 34px 11px 12px; color:var(--text); font-family:var(--font-mono); font-size:14px; cursor:pointer; outline:none; position:relative; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ms-btn::after { content:'▾'; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--muted); }
+  .ms-btn:focus, .ms-btn[aria-expanded="true"] { border-color:var(--accent); }
+  .ms-btn:disabled { opacity:.6; cursor:not-allowed; }
+  .ms-panel { position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:6px; box-shadow:0 10px 30px rgba(0,0,0,.35); max-height:340px; overflow:auto; }
+  .ms-panel label { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; font-family:var(--font-mono); font-size:14px; margin:0; text-transform:none; letter-spacing:0; color:var(--text); }
+  .ms-panel label:hover { background:var(--surface2); }
+  .ms-panel input[type="checkbox"] { width:auto; margin:0; }
+  .ms-panel .ms-grupo { padding:8px 10px 4px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .ms-panel .ms-pie { padding:6px 4px 2px; display:flex; justify-content:flex-end; }
   .filtros label { margin-top:0; }
   .filtros select, .filtros input[type="date"] { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 12px; color:var(--text); font-family:var(--font-mono); font-size:14px; outline:none; color-scheme:dark; }
   .filtros select:focus, .filtros input[type="date"]:focus { border-color:var(--accent); }
@@ -324,8 +335,12 @@
           <select id="inf-mes"></select>
         </div>
         <div class="campo ancho">
-          <label for="inf-usuario">Empleado</label>
-          <select id="inf-usuario"><option value="">Todos</option></select>
+          <label id="inf-usu-label">Empleado</label>
+          <input type="hidden" id="inf-usuario" value="">
+          <div class="ms-wrap">
+            <button type="button" id="inf-usu-btn" class="ms-btn" aria-haspopup="true" aria-expanded="false" aria-labelledby="inf-usu-label inf-usu-btn">Todos</button>
+            <div id="inf-usu-panel" class="ms-panel hidden" role="group" aria-labelledby="inf-usu-label"></div>
+          </div>
         </div>
         <button type="submit" class="btn btn-sec btn-sm" id="btn-inf-actualizar">&#8635; Actualizar</button>
         <div class="chips hidden" id="inf-resumen" style="margin:0;flex:1;min-width:0;align-self:flex-end;justify-content:flex-end;"></div>
@@ -1353,7 +1368,8 @@ $('inf-lista').addEventListener('change', ev => {
 });
 
 function filtrosInformeHabilitados(on) {
-  ['inf-usuario', 'inf-mes', 'btn-inf-actualizar'].forEach(i => { $(i).disabled = !on; });
+  ['inf-usu-btn', 'inf-mes', 'btn-inf-actualizar'].forEach(i => { $(i).disabled = !on; });
+  if (!on) cerrarPanelUsuarios(false);
 }
 
 function repintarInforme() { const y = window.scrollY; renderInforme(INF_DATA); window.scrollTo(0, y); }
@@ -1651,11 +1667,67 @@ $('mod-aus-ok').addEventListener('click', async () => {
 });
 
 let INF_ULT_MES = '', INF_ULT_USU = '';
+let INF_SEL = [];                       // empleados elegidos (vacío = todos los que tuvieron registros)
+let INF_OPC = { con: [], sin: [] };     // opciones del selector para el mes mostrado
+
+function textoSelUsuarios() {
+  if (!INF_SEL.length) return 'Todos';
+  if (INF_SEL.length <= 2) return INF_SEL.join(', ');
+  return INF_SEL.length + ' empleados';
+}
+function sincronizarUsuarios() {
+  $('inf-usuario').value = INF_SEL.join('|');
+  $('inf-usu-btn').textContent = textoSelUsuarios();
+  $('inf-usu-btn').title = INF_SEL.length ? INF_SEL.join(', ') : 'Todos los empleados con registros en el mes';
+}
+function dibujarPanelUsuarios() {
+  const p = $('inf-usu-panel'); p.innerHTML = '';
+  const fila = (texto, valor, marcado) => {
+    const l = document.createElement('label');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.dataset.usu = valor; c.checked = marcado;
+    l.appendChild(c); l.appendChild(document.createTextNode(texto)); p.appendChild(l);
+  };
+  fila('Todos', '', INF_SEL.length === 0);
+  INF_OPC.con.forEach(n => fila(n, n, INF_SEL.indexOf(n) >= 0));
+  if (INF_OPC.sin.length) {
+    const g = document.createElement('div'); g.className = 'ms-grupo'; g.textContent = 'Sin registros en el mes'; p.appendChild(g);
+    INF_OPC.sin.forEach(n => fila(n, n, INF_SEL.indexOf(n) >= 0));
+  }
+  const pie = document.createElement('div'); pie.className = 'ms-pie';
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sm'; b.id = 'inf-usu-aplicar'; b.textContent = 'Aplicar';
+  pie.appendChild(b); p.appendChild(pie);
+}
+function panelUsuariosAbierto() { return !$('inf-usu-panel').classList.contains('hidden'); }
+function abrirPanelUsuarios() {
+  if ($('inf-usu-btn').disabled) return;
+  dibujarPanelUsuarios();
+  $('inf-usu-panel').classList.remove('hidden'); $('inf-usu-btn').setAttribute('aria-expanded', 'true');
+}
+function cerrarPanelUsuarios(aplicar) {
+  if (!panelUsuariosAbierto()) return;
+  $('inf-usu-panel').classList.add('hidden'); $('inf-usu-btn').setAttribute('aria-expanded', 'false');
+  if (aplicar && $('inf-usuario').value !== INF_ULT_USU) cargarInforme();
+}
+$('inf-usu-btn').addEventListener('click', ev => { ev.stopPropagation(); if (panelUsuariosAbierto()) cerrarPanelUsuarios(true); else abrirPanelUsuarios(); });
+$('inf-usu-panel').addEventListener('click', ev => {
+  ev.stopPropagation();
+  if (ev.target.id === 'inf-usu-aplicar') cerrarPanelUsuarios(true);
+});
+$('inf-usu-panel').addEventListener('change', ev => {
+  const c = ev.target; if (!c.dataset || c.dataset.usu === undefined) return;
+  if (c.dataset.usu === '') { INF_SEL = []; }                                  // "Todos" limpia la selección
+  else { INF_SEL = c.checked ? INF_SEL.concat(c.dataset.usu) : INF_SEL.filter(n => n !== c.dataset.usu); }
+  sincronizarUsuarios();
+  dibujarPanelUsuarios();
+});
+document.addEventListener('click', () => cerrarPanelUsuarios(true));
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarPanelUsuarios(true); });
+
 async function cargarInforme(sinPreguntar, desdeMes) {
   if (sinPreguntar !== true && infHayCambiosSinGuardar()) {
     if (!confirm(MSG_SIN_GUARDAR)) {              // se queda donde estaba: se restauran los filtros
       if (INF_ULT_MES) $('inf-mes').value = INF_ULT_MES;
-      $('inf-usuario').value = INF_ULT_USU;
+      INF_SEL = INF_ULT_USU ? INF_ULT_USU.split('|') : []; sincronizarUsuarios();
       return;
     }
   }
@@ -1673,19 +1745,13 @@ async function cargarInforme(sinPreguntar, desdeMes) {
     INF_EDIT = false;
     const r = await llamarGestor('gestor_informe', { mes: $('inf-mes').value, usuario: $('inf-usuario').value }, true);
     if (r.error) { if (SESION.token) toast(r.error, 'error'); return; }
-    const sel = $('inf-usuario'), actual = sel.value;
-    sel.innerHTML = '<option value="">Todos</option>';
-    (r.empleados || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
-    const sinReg = r.empleadosSinRegistro || [];
-    if (sinReg.length) {                       // activos sin registros en el mes: se pueden elegir para cargarles una jornada o marcar ausente
-      const g = document.createElement('optgroup'); g.label = 'Sin registros en el mes';
-      sinReg.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; g.appendChild(o); });
-      sel.appendChild(g);
+    INF_OPC = { con: r.empleados || [], sin: r.empleadosSinRegistro || [] };
+    const validos = INF_SEL.filter(n => INF_OPC.con.indexOf(n) >= 0 || (!desdeMes && INF_OPC.sin.indexOf(n) >= 0));
+    if (validos.length !== INF_SEL.length) {         // al cambiar de mes se sacan los empleados que no tienen registros en el nuevo
+      INF_SEL = validos; sincronizarUsuarios();
+      if (desdeMes) { reconsultar = true; return; }  // se vuelve a consultar con la selección corregida (ver el finally)
     }
-    const eraSinReg = sinReg.indexOf(actual) >= 0;
-    sel.value = ((r.empleados || []).indexOf(actual) >= 0 || eraSinReg) ? actual : '';
-    if (eraSinReg && desdeMes) { sel.value = ''; reconsultar = true; }      // al cambiar de mes, si el empleado elegido no tiene registros, vuelve a Todos
-    if (reconsultar) return;                   // se vuelve a consultar con "Todos" (ver el finally)
+    sincronizarUsuarios();
     renderInforme(r);
     INF_ULT_MES = $('inf-mes').value; INF_ULT_USU = $('inf-usuario').value;
     INF_INICIADO = true;
@@ -1699,7 +1765,6 @@ async function cargarInforme(sinPreguntar, desdeMes) {
 }
 $('form-inf').addEventListener('submit', ev => { ev.preventDefault(); cargarInforme(); });
 $('inf-mes').addEventListener('change', () => cargarInforme(false, true));
-$('inf-usuario').addEventListener('change', cargarInforme);
 
 // ─── parámetros ───
 const TIPOS_DIA =['LUN-VIE', 'SABADO', 'DOMINGO', 'FERIADO'];
