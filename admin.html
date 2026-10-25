@@ -1332,7 +1332,7 @@ function renderInforme(r) {
   tb.appendChild(body); sx.appendChild(tb); cont.appendChild(sx);
   if (INF_EDIT) {                                   // casilla en el título de 50% / 100% / Faltante: marca o desmarca toda la columna
     const ths = tb.querySelectorAll('thead th');
-    [['c50', 6], ['c100', 7], ['faltante', 8]].forEach(([campo, i]) => {
+    [['c50', 7], ['c100', 8], ['faltante', 9]].forEach(([campo, i]) => {
       const c = document.createElement('input'); c.type = 'checkbox'; c.className = 'th-todos'; c.dataset.todos = campo;
       c.title = 'Marcar o desmarcar todos los de esta columna'; c.setAttribute('aria-label', 'Marcar todos: ' + ths[i].textContent);
       ths[i].appendChild(document.createTextNode(' ')); ths[i].appendChild(c);
