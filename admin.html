@@ -1292,12 +1292,10 @@ function renderInforme(r) {
         const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'btn-icono';
         bm.dataset.ausAccion = 'marcar'; bm.dataset.usuario = d.usuario; bm.dataset.fecha = d.fecha;
         bm.title = 'Marcar ausente'; bm.setAttribute('aria-label', 'Marcar ausente'); bm.innerHTML = ICONO_AUSENTE; tdA.appendChild(bm);
-        if (!d.tieneRegistro) {
-          tdA.appendChild(document.createTextNode(' '));
-          const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'btn-icono';
-          bc.dataset.crear = '1'; bc.dataset.usuario = d.usuario; bc.dataset.fecha = d.fecha;
-          bc.title = 'Agregar jornada'; bc.setAttribute('aria-label', 'Agregar jornada'); bc.innerHTML = ICONO_MAS; tdA.appendChild(bc);
-        }
+        tdA.appendChild(document.createTextNode(' '));
+        const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'btn-icono';
+        bc.dataset.crear = '1'; bc.dataset.usuario = d.usuario; bc.dataset.fecha = d.fecha;
+        bc.title = 'Agregar jornada'; bc.setAttribute('aria-label', 'Agregar jornada'); bc.innerHTML = ICONO_MAS; tdA.appendChild(bc);
       }
     }
     tr.appendChild(tdA);
