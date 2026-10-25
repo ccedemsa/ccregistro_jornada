@@ -319,13 +319,13 @@
         </div>
       </div>
       <form class="filtros" id="form-inf" autocomplete="off">
-        <div class="campo ancho">
-          <label for="inf-usuario">Empleado</label>
-          <select id="inf-usuario"><option value="">Todos</option></select>
-        </div>
         <div class="campo">
           <label for="inf-mes">Mes</label>
           <select id="inf-mes"></select>
+        </div>
+        <div class="campo ancho">
+          <label for="inf-usuario">Empleado</label>
+          <select id="inf-usuario"><option value="">Todos</option></select>
         </div>
         <button type="submit" class="btn btn-sec btn-sm" id="btn-inf-actualizar">&#8635; Actualizar</button>
         <div class="chips hidden" id="inf-resumen" style="margin:0;flex:1;min-width:0;align-self:flex-end;justify-content:flex-end;"></div>
@@ -1651,7 +1651,7 @@ $('mod-aus-ok').addEventListener('click', async () => {
 });
 
 let INF_ULT_MES = '', INF_ULT_USU = '';
-async function cargarInforme(sinPreguntar) {
+async function cargarInforme(sinPreguntar, desdeMes) {
   if (sinPreguntar !== true && infHayCambiosSinGuardar()) {
     if (!confirm(MSG_SIN_GUARDAR)) {              // se queda donde estaba: se restauran los filtros
       if (INF_ULT_MES) $('inf-mes').value = INF_ULT_MES;
@@ -1662,6 +1662,7 @@ async function cargarInforme(sinPreguntar) {
   if (INF_CARGANDO) { INF_PENDIENTE = true; return; }
   if (!$('inf-mes').value) poblarMeses('inf-mes');
   INF_CARGANDO = true;
+  let reconsultar = false;
   const btn = $('btn-inf-actualizar');
   const original = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Actualizando...';
@@ -1675,7 +1676,16 @@ async function cargarInforme(sinPreguntar) {
     const sel = $('inf-usuario'), actual = sel.value;
     sel.innerHTML = '<option value="">Todos</option>';
     (r.empleados || []).forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
-    sel.value = (r.empleados || []).indexOf(actual) >= 0 ? actual : '';
+    const sinReg = r.empleadosSinRegistro || [];
+    if (sinReg.length) {                       // activos sin registros en el mes: se pueden elegir para cargarles una jornada o marcar ausente
+      const g = document.createElement('optgroup'); g.label = 'Sin registros en el mes';
+      sinReg.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; g.appendChild(o); });
+      sel.appendChild(g);
+    }
+    const eraSinReg = sinReg.indexOf(actual) >= 0;
+    sel.value = ((r.empleados || []).indexOf(actual) >= 0 || eraSinReg) ? actual : '';
+    if (eraSinReg && desdeMes) { sel.value = ''; reconsultar = true; }      // al cambiar de mes, si el empleado elegido no tiene registros, vuelve a Todos
+    if (reconsultar) return;                   // se vuelve a consultar con "Todos" (ver el finally)
     renderInforme(r);
     INF_ULT_MES = $('inf-mes').value; INF_ULT_USU = $('inf-usuario').value;
     INF_INICIADO = true;
@@ -1684,10 +1694,11 @@ async function cargarInforme(sinPreguntar) {
     btn.disabled = false; btn.innerHTML = original;
     $('inf-cargando').classList.add('hidden');
     if (INF_PENDIENTE) { INF_PENDIENTE = false; cargarInforme(true); }
+    else if (reconsultar) cargarInforme(true);
   }
 }
 $('form-inf').addEventListener('submit', ev => { ev.preventDefault(); cargarInforme(); });
-$('inf-mes').addEventListener('change', cargarInforme);
+$('inf-mes').addEventListener('change', () => cargarInforme(false, true));
 $('inf-usuario').addEventListener('change', cargarInforme);
 
 // ─── parámetros ───
