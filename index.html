@@ -1455,10 +1455,17 @@ async function cargarHistorial() {
   cont.innerHTML = '<div class="empty-state"><div class="icon"><div class="spinner spinner-lg"></div></div><div>Cargando...</div></div>';
   try {
     const url = `${STATE.sheetUrl}?accion=historial&usuario=${encodeURIComponent(STATE.usuario)}&userId=${encodeURIComponent(STATE.userId)}`;
-    const resp = await fetch(url, { method: 'GET', mode: 'cors' });
-    const data = await resp.json();
-    
+    const ctrlH = new AbortController();
+    const toH = setTimeout(() => ctrlH.abort(), 30000);
+    let data;
+    try {
+      const resp = await fetch(url, { method: 'GET', mode: 'cors', signal: ctrlH.signal });
+      data = await resp.json();
+    } finally { clearTimeout(toH); }
+
     if (data.codigo === 'NO_AUTORIZADO') { cont.innerHTML = ''; sesionInvalida(); return; }
+    // los días marcados ausentes por el gestor se muestran como una línea más
+    (data.ausentes || []).forEach(f => { (data.registros = data.registros || []).push({ tipo: 'AUSENTE', fechaHoraInicio: f + ' 00:00:00' }); });
     if (data.registros && data.registros.length > 0) {
       // Filtrar solo mes actual y anterior
       const now = new Date();
@@ -1519,7 +1526,7 @@ async function cargarHistorial() {
           return dB - dA;
         });
         
-        cont.innerHTML = filtrados.slice(0,30).map(r => buildHistorialItem(r)).join('');
+        cont.innerHTML = filtrados.slice(0, 400).map(r => buildHistorialItem(r)).join('');
       } else {
         cont.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>No hay registros del mes actual o anterior</div></div>';
       }
@@ -1527,14 +1534,30 @@ async function cargarHistorial() {
       cont.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>No hay registros aún</div></div>';
     }
   } catch(e) {
-    cont.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><div>No se pudo cargar el historial.<br>Verificá la conexión.</div></div>';
+    cont.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><div>' + (e && e.name === 'AbortError' ? 'El servidor tardó demasiado.' : 'No se pudo cargar el historial.') + '<br>Verificá la conexión y tocá "Actualizar historial".</div></div>';
   } finally {
     _historialCargando = false;
     if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Actualizar historial'; }
   }
 }
 
+function escH(t) { return String(t === null || t === undefined ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function etiquetaCorregida(r) {
+  if (!r.corregida) return '';
+  return `<span class="badge" style="margin-left:6px;border:1px solid var(--border);color:var(--text);">${r.corregida === 'alta' ? 'Cargada por el gestor' : 'Corregida por el gestor'}</span>`;
+}
+
 function buildHistorialItem(r) {
+  if (r.tipo === 'AUSENTE') {
+    const dA = new Date(String(r.fechaHoraInicio).replace(' ', 'T'));
+    return `<div class="history-item">
+      <div class="history-type novedad">🚫</div>
+      <div class="history-body">
+        <div class="history-title" style="font-size:13px; line-height:1.4;">${isNaN(dA) ? '' : fmtFecha(dA)} • Ausente</div>
+        <div class="history-desc" style="margin-top:4px;">Marcado por el gestor: este día no suma horas.</div>
+      </div>
+    </div>`;
+  }
   const esJornada = r.tipo === 'JORNADA';
   const icon = esJornada ? '⏱' : '📌';
   const clase = esJornada ? 'jornada' : 'novedad';
@@ -1591,9 +1614,9 @@ function buildHistorialItem(r) {
       <div class="history-body">
         <div class="history-title" style="font-size:13px; line-height:1.4;">
           ${displayText}
-          ${dur ? `<span class="badge badge-green" style="margin-left:6px;">${dur}</span>` : ''}
+          ${dur ? `<span class="badge badge-green" style="margin-left:6px;">${dur}</span>` : ''}${etiquetaCorregida(r)}
         </div>
-        ${r.observaciones ? `<div class="history-desc" style="margin-top:4px;">${r.observaciones}</div>` : ''}
+        ${r.observaciones ? `<div class="history-desc" style="margin-top:4px;">${escH(r.observaciones)}</div>` : ''}
       </div>
     </div>`;
   } else {
@@ -1610,9 +1633,9 @@ function buildHistorialItem(r) {
       <div class="history-type ${clase}">${icon}</div>
       <div class="history-body">
         <div class="history-title" style="font-size:13px; line-height:1.4;">
-          ${fechaStr}
+          ${fechaStr}${etiquetaCorregida(r)}
         </div>
-        <div class="history-desc" style="margin-top:4px;">${r.descripcion || 'Sin descripción'}</div>
+        <div class="history-desc" style="margin-top:4px;">${escH(r.descripcion) || 'Sin descripción'}</div>
       </div>
     </div>`;
   }
