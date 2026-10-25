@@ -284,8 +284,8 @@
     <div id="sec-informe" class="hidden">
       <div class="sec-head">
         <div>
-          <h3>Informe de horas <span class="badge warn">PRELIMINAR</span></h3>
-          <p class="sub">Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Solo cuentan las extras y los faltantes que autorices con Editar.</p>
+          <h3>Informe de horas <span class="badge warn" id="inf-badge">PRELIMINAR</span></h3>
+          <p class="sub" id="inf-sub">Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Solo cuentan las extras y los faltantes que autorices con Editar.</p>
         </div>
       </div>
       <form class="filtros" id="form-inf" autocomplete="off">
@@ -405,6 +405,38 @@
     <div class="acciones-form">
       <button type="button" class="btn btn-sm" id="mod-aus-ok">Marcar ausente</button>
       <button type="button" class="btn btn-sec btn-sm" id="mod-aus-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: cerrar mes -->
+<div class="modal-fondo hidden" id="modal-cierre">
+  <div class="modal">
+    <h3 id="cc-titulo">Cerrar mes</h3>
+    <p class="sub" id="cc-det"></p>
+    <div id="cc-resumen" class="mono" style="font-size:12.5px;line-height:1.7;margin:4px 0 8px;"></div>
+    <div id="cc-avisos" style="font-size:12.5px;line-height:1.6;margin:0 0 8px;"></div>
+    <label for="cc-texto">Para confirmar, escribí CERRAR</label>
+    <input type="text" id="cc-texto" autocomplete="off" placeholder="CERRAR">
+    <div class="msg" id="cc-msg"></div>
+    <div class="acciones-form">
+      <button type="button" class="btn btn-sm" id="cc-ok" disabled>Cerrar mes</button>
+      <button type="button" class="btn btn-sec btn-sm" id="cc-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: reabrir mes -->
+<div class="modal-fondo hidden" id="modal-reabrir">
+  <div class="modal">
+    <h3 id="rb-titulo">Reabrir mes</h3>
+    <p class="sub" id="rb-det"></p>
+    <label for="rb-motivo">Motivo (obligatorio)</label>
+    <input type="text" id="rb-motivo" maxlength="200" autocomplete="off" placeholder="Ej: Reclamo de un empleado">
+    <div class="msg" id="rb-msg"></div>
+    <div class="acciones-form">
+      <button type="button" class="btn btn-sm" id="rb-ok">Reabrir mes</button>
+      <button type="button" class="btn btn-sec btn-sm" id="rb-cancel">Cancelar</button>
     </div>
   </div>
 </div>
@@ -1022,6 +1054,14 @@ function renderInforme(r) {
     return;
   }
 
+  // estado del mes (abierto / cerrado)
+  const cierre = r.cierre || {};
+  const cerrado = cierre.estado === 'CERRADO';
+  const bd = $('inf-badge'); bd.textContent = cerrado ? 'CERRADO' : 'PRELIMINAR'; bd.className = 'badge ' + (cerrado ? 'info' : 'warn');
+  const sb = $('inf-sub');
+  if (cerrado) { const p = partesTs(cierre.cuando); sb.textContent = 'Mes cerrado por ' + cierre.gestor + ' el ' + p.f + ' ' + p.h + '. Los datos están congelados: no cambian con parámetros ni feriados.'; }
+  else sb.textContent = 'Horas trabajadas por día y por tipo, calculadas en vivo con los parámetros y feriados vigentes. Solo cuentan las extras y los faltantes que autorices con Editar.' + (cierre.nota ? ' ' + cierre.nota + '.' : '');
+
   // totales por empleado
   const h4 = document.createElement('h3'); h4.style.cssText = 'font-size:16px;margin:6px 0 10px;'; h4.textContent = 'Totales del mes'; const hs = document.createElement('span'); hs.className = 'mono'; hs.style.cssText = 'font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;'; hs.textContent = 'horas decimales y h:mm'; h4.appendChild(hs); cont.appendChild(h4);
   const sx1 = document.createElement('div'); sx1.className = 'scroll-x';
@@ -1050,7 +1090,15 @@ function renderInforme(r) {
     boton('inf-cancelar', 'Cancelar', 'btn-sec');
   } else {
     if (r.cambios) boton('inf-solo-cambios', INF_SOLO_CAMBIOS ? 'Ver todo' : 'Ver solo cambios (' + r.cambios + ')', 'btn-sec');
-    boton('inf-editar', 'Editar', 'btn-sec');
+    if (cerrado) {
+      if (cierre.puedeReabrir) boton('inf-reabrir', 'Reabrir mes', 'btn-sec');
+    } else {
+      if (!cierre.puedeCerrar) { const t = document.createElement('span'); t.className = 'sub'; t.style.cssText = 'margin:0;max-width:420px;text-align:right;'; t.textContent = cierre.motivoNoCerrar || ''; acc.appendChild(t); }
+      const bcm = boton('inf-cerrar', 'Cerrar mes', 'btn-sec');
+      const filtrado = !!$('inf-usuario').value;
+      if (!cierre.puedeCerrar || filtrado) { bcm.disabled = true; bcm.title = filtrado && cierre.puedeCerrar ? 'Quitá el filtro de empleado: el cierre incluye a todos' : (cierre.motivoNoCerrar || ''); }
+      boton('inf-editar', 'Editar', 'btn-sec');
+    }
   }
   cab.appendChild(acc); cont.appendChild(cab);
 
@@ -1114,7 +1162,7 @@ function renderInforme(r) {
     });
 
     const tdA = document.createElement('td'); tdA.className = 'acc';
-    if (!INF_EDIT) {
+    if (!INF_EDIT && !cerrado) {
       if (d.ausente) {
         const bq = document.createElement('button'); bq.type = 'button'; bq.className = 'btn-icono activo';
         bq.dataset.ausAccion = 'quitar'; bq.dataset.usuario = d.usuario; bq.dataset.fecha = d.fecha;
@@ -1191,6 +1239,84 @@ $('inf-lista').addEventListener('click', async ev => {
       toast('Autorizaciones guardadas');
     });
   }
+});
+
+// ─── cerrar / reabrir mes ───
+let CC_MES = null;
+function resumenCierre(r) {          // texto de control antes de cerrar (con todos los empleados cargados)
+  const res = $('cc-resumen'); res.innerHTML = '';
+  r.totales.forEach(t => {
+    const l = document.createElement('div');
+    l.textContent = t.usuario + ': ' + (t.total ? fmtDec(t.total) + ' h (' + fmtHM(t.total) + ')' : '—') + '  ·  50%: ' + fmtDec(t.c50) + '  ·  100%: ' + fmtDec(t.c100);
+    res.appendChild(l);
+  });
+  const av = $('cc-avisos'); av.innerHTML = '';
+  const aviso = (txt, color) => { const d = document.createElement('div'); d.textContent = txt; if (color) d.style.color = color; av.appendChild(d); };
+  let sinAut = 0, minSinAut = 0, minFalt = 0;
+  r.filas.forEach(d => {
+    if (d.ausente) return;
+    const e = Math.max(0, d.calc.c50 - d.c50) + Math.max(0, d.calc.c100 - d.c100);
+    if (e > 0) { sinAut++; minSinAut += e; }
+  });
+  r.totales.forEach(t => { minFalt += t.faltante; });
+  if (r.cambios) aviso('Hay ' + r.cambios + ' fila(s) con cambios sin reconfirmar: quedan como no autorizadas.', 'var(--rojo)');
+  if (sinAut) aviso('Extras sin autorizar: ' + sinAut + ' día(s), ' + fmtDec(minSinAut) + ' h. No se cuentan.', 'var(--warn)');
+  if (minFalt) aviso('Faltante sin cubrir: ' + fmtDec(minFalt) + ' h en total.', 'var(--muted)');
+}
+function cerrarModalCierre() { $('modal-cierre').classList.add('hidden'); CC_MES = null; }
+function cerrarModalReabrir() { $('modal-reabrir').classList.add('hidden'); }
+$('cc-cancel').addEventListener('click', cerrarModalCierre);
+$('rb-cancel').addEventListener('click', cerrarModalReabrir);
+$('modal-cierre').addEventListener('click', ev => { if (ev.target === $('modal-cierre')) cerrarModalCierre(); });
+$('modal-reabrir').addEventListener('click', ev => { if (ev.target === $('modal-reabrir')) cerrarModalReabrir(); });
+$('cc-texto').addEventListener('input', () => { $('cc-ok').disabled = $('cc-texto').value.trim().toUpperCase() !== 'CERRAR'; });
+$('cc-texto').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (!$('cc-ok').disabled) $('cc-ok').click(); } });
+$('rb-motivo').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('rb-ok').click(); } });
+
+$('inf-lista').addEventListener('click', ev => {
+  const b = ev.target.closest('button#inf-cerrar, button#inf-reabrir');
+  if (!b || b.disabled || !INF_DATA) return;
+  const mes = INF_DATA.mes, legible = mes.substring(5, 7) + '/' + mes.substring(0, 4);
+  if (b.id === 'inf-cerrar') {
+    CC_MES = mes;
+    $('cc-titulo').textContent = 'Cerrar el mes ' + legible;
+    $('cc-det').textContent = 'Se congela el informe de todos los empleados. Después no se pueden editar jornadas, ausencias ni autorizaciones de este mes, salvo reabriéndolo.';
+    resumenCierre(INF_DATA);
+    $('cc-texto').value = ''; $('cc-ok').disabled = true; $('cc-msg').textContent = '';
+    $('modal-cierre').classList.remove('hidden');
+    setTimeout(() => $('cc-texto').focus(), 50);
+  } else {
+    $('rb-titulo').textContent = 'Reabrir el mes ' + legible;
+    $('rb-det').textContent = 'El informe vuelve a calcularse en vivo con los parámetros y feriados actuales. Revisá las filas "Cambió" antes de volver a cerrarlo.';
+    $('rb-motivo').value = ''; $('rb-msg').textContent = '';
+    $('modal-reabrir').classList.remove('hidden');
+    setTimeout(() => $('rb-motivo').focus(), 50);
+  }
+});
+$('cc-ok').addEventListener('click', async () => {
+  if (!CC_MES) return;
+  const mes = CC_MES;
+  await conSpinner($('cc-ok'), 'Cerrando...', async () => {
+    const r = await llamarGestor('gestor_mes_cerrar', { mes, filtroUsuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) $('cc-msg').textContent = r.error; return; }
+    cerrarModalCierre();
+    INF_SOLO_CAMBIOS = false;
+    mostrarInformeActualizado(r);
+    toast('Mes cerrado');
+  });
+});
+$('rb-ok').addEventListener('click', async () => {
+  const motivo = $('rb-motivo').value.trim();
+  if (!motivo) { $('rb-msg').textContent = 'El motivo es obligatorio'; return; }
+  const mes = INF_DATA && INF_DATA.mes;
+  if (!mes) return;
+  await conSpinner($('rb-ok'), 'Reabriendo...', async () => {
+    const r = await llamarGestor('gestor_mes_reabrir', { mes, motivo, filtroUsuario: $('inf-usuario').value });
+    if (r.error) { if (SESION.token) $('rb-msg').textContent = r.error; return; }
+    cerrarModalReabrir();
+    mostrarInformeActualizado(r);
+    toast('Mes reabierto');
+  });
 });
 
 // ─── agregar jornada que el empleado no registró ───
