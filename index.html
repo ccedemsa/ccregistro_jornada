@@ -1269,7 +1269,7 @@ async function iniciarJornada() {
     ubicacionInicio: locStr
   };
 
-  const resultado = await enviarASheet(payload);
+  const resultado = await enviarASheet(payload, btn);
   btn.disabled = false;
   btn.innerHTML = '🟢&nbsp; Iniciar Jornada';
   if (!resultado) return;
@@ -1386,7 +1386,7 @@ async function finalizarJornada() {
     observaciones: obs
   };
 
-  const resultado = await enviarASheet(payload);
+  const resultado = await enviarASheet(payload, btn);
 
   // Siempre restaurar el botón
   btn.disabled = false;
@@ -1432,7 +1432,7 @@ async function registrarNovedad() {
     descripcion: desc
   };
 
-  const ok = await enviarASheet(payload);
+  const ok = await enviarASheet(payload, btn);
   btn.disabled = false;
   btn.innerHTML = '📝&nbsp; Registrar Novedad';
   if (ok) {
@@ -1663,7 +1663,7 @@ async function sincronizarEstado(opts) {
       STATE.jornadaActiva = { rowId: data.rowId, inicio: data.inicio, inicioLoc: data.ubicacionInicio };
       localStorage.setItem('rj_jornada_activa', JSON.stringify(STATE.jornadaActiva));
       const d = new Date(data.inicio);
-      toast(`Tenés una jornada abierta desde ${fmtFecha(d)} ${fmtHora(d)}. No olvides registrar el cierre.`, 'warn');
+      toast(`Tenés una jornada abierta desde ${fmtFecha(d)} ${fmtHora(d)}. No te olvides de registrar el cierre.`, 'warn');
     } else {
       STATE.jornadaActiva = null;
       localStorage.removeItem('rj_jornada_activa');
@@ -1688,29 +1688,63 @@ document.addEventListener('visibilitychange', () => {
   sincronizarEstado({ silencioso: true });
 });
 
-async function enviarASheet(payload) {
-  try {
-    const resp = await fetch(STATE.sheetUrl, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain' }, // Apps Script requiere esto para evitar preflight en algunos casos
-      body: JSON.stringify(payload)
-    });
-    const data = await resp.json();
-    if (data.codigo === 'NO_AUTORIZADO') { sesionInvalida(); return false; }
-    if (data.error) {
-      toast(data.error, 'error');
-      // Si el rechazo es por un estado desfasado, se vuelve a sincronizar con el Sheet
-      if (data.codigo === 'JORNADA_ABIERTA' || /no encontrada|ya estaba cerrada/.test(data.error)) {
-        sincronizarEstado({ silencioso: true });
-      }
-      return false;
-    }
-    return true;
-  } catch(e) {
-    toast('Error de conexión con el servidor', 'error');
+// Envío al Sheet con reintentos: 30 s el primer intento y 20 s los siguientes, con pausa entre intentos.
+// Se reintenta SOLO ante fallos de red, tiempo agotado, respuesta que no es JSON o servidor ocupado; el MISMO envío
+// (mismo rowId y mismas horas) y el servidor no duplica si el primero ya se había guardado. Los errores de negocio
+// (plazo vencido, jornada abierta, etc.) no se reintentan.
+const ENVIO_TIMEOUTS = [30000, 20000, 20000];
+const ENVIO_PAUSAS   = [3000, 6000];
+const _esperar = ms => new Promise(r => setTimeout(r, ms));
+
+async function enviarASheet(payload, btn) {
+  const N = ENVIO_TIMEOUTS.length;
+  const estado = txt => { if (btn) btn.innerHTML = '<span class="spinner"></span> ' + txt; };
+  if (navigator.onLine === false) {
+    toast('Sin conexión. No se registró nada: probá de nuevo cuando tengas señal.', 'error', 6000);
     return false;
   }
+  let motivo = '';
+  for (let i = 0; i < N; i++) {
+    if (i > 0) {
+      estado('Sin respuesta. Reintentando (' + (i + 1) + ' de ' + N + ')...');
+      await _esperar(ENVIO_PAUSAS[i - 1]);
+      if (navigator.onLine === false) { motivo = 'red'; break; }
+      estado('Reintentando (' + (i + 1) + ' de ' + N + ')...');
+    }
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), ENVIO_TIMEOUTS[i]);
+    try {
+      const resp = await fetch(STATE.sheetUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' }, // Apps Script requiere esto para evitar preflight en algunos casos
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
+      });
+      let data = null;
+      try { data = await resp.json(); } catch (e) { data = null; }
+      if (!data) { motivo = 'respuesta'; continue; }                 // la respuesta no era JSON (error de Google): se reintenta
+      if (data.codigo === 'REINTENTAR') { motivo = 'ocupado'; continue; }   // servidor ocupado: se reintenta
+      if (data.codigo === 'NO_AUTORIZADO') { sesionInvalida(); return false; }
+      if (data.error) {
+        toast(data.error, 'error', data.error.length > 70 ? 6000 : 3000);
+        // Si el rechazo es por un estado desfasado, se vuelve a sincronizar con el Sheet
+        if (data.codigo === 'JORNADA_ABIERTA' || /no encontrada|ya estaba cerrada/.test(data.error)) {
+          sincronizarEstado({ silencioso: true });
+        }
+        return false;
+      }
+      return true;
+    } catch (e) {
+      motivo = e.name === 'AbortError' ? 'tiempo' : 'red';
+    } finally {
+      clearTimeout(to);
+    }
+  }
+  const txt = motivo === 'ocupado' ? 'El servidor está ocupado. Probá de nuevo en un momento.'
+    : 'No pudimos confirmar el envío. Tocá el botón de nuevo: si ya se había guardado, no se duplica.';
+  toast(txt, 'error', 7000);
+  return false;
 }
 
 // ═══════════════════════════════════════════
@@ -1795,14 +1829,14 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 //  TOAST
 // ═══════════════════════════════════════════
 let toastTimer = null;
-function toast(msg, tipo = 'success') {
+function toast(msg, tipo = 'success', ms = 3000) {
   const el = document.getElementById('toast');
   const icons = { success: '✓', error: '✕', warn: '⚠' };
   document.getElementById('toast-icon').textContent = icons[tipo] || '•';
   document.getElementById('toast-msg').textContent = msg;
   el.className = `toast ${tipo} show`;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, ms);
 }
 
 function resetearApp() {
