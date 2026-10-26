@@ -1180,13 +1180,12 @@ function fmtHM(min) {                 // 510 -> '8:30'; 0 -> '—'
 function fmtDec(min) {                 // 510 -> '8,50' (horas decimales, 2 decimales, coma)
   return (Math.round(min / 60 * 100) / 100).toFixed(2).replace('.', ',');
 }
-function celdaHoras(tr, min) {         // decimal grande (para el cálculo monetario) y h:mm chico abajo
+function fmtD(min) { return min ? fmtDec(min) : '—'; }   // decimal en pantalla; 0 -> '—'
+function celdaHoras(tr, min) {         // solo decimal
   const td = document.createElement('td'); td.className = 'num hdec';
   if (!min) { td.textContent = '—'; td.style.fontWeight = '400'; }
   else {
     td.appendChild(document.createTextNode(fmtDec(min)));
-    const d = document.createElement('span'); d.className = 'dec'; d.textContent = fmtHM(min); d.title = 'Horas y minutos';
-    td.appendChild(d);
   }
   tr.appendChild(td);
 }
@@ -1201,23 +1200,23 @@ let INF_DATA = null;
 let INF_EDIT = false;
 let INF_SOLO_CAMBIOS = false;
 
-function parseMin(t) {                         // 'H:MM' -> minutos (NaN si no es válido)
-  const m = /^(\d{1,3}):([0-5]\d)$/.exec(String(t || '').trim());
-  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : NaN;
+function parseMin(t) {                         // horas decimales ('2,32' o '2.32') -> minutos (NaN si no es válido)
+  const m = /^(\d{1,3})(?:[.,](\d{1,2}))?$/.exec(String(t || '').trim());
+  return m ? Math.round(parseFloat(m[1] + '.' + (m[2] || '0')) * 60) : NaN;
 }
-function fmtMinInput(min) { return Math.floor(min / 60) + ':' + String(min % 60).padStart(2, '0'); }
-function tachado(min) { const x = document.createElement('s'); x.className = 'nc'; x.textContent = fmtHM(min); return x; }
-function difCelda(viejo, nuevo) {              // "2:00 → 3:00" resaltado
+function fmtMinInput(min) { return fmtDec(min); }              // minutos -> horas decimales '2,32'
+function tachado(min) { const x = document.createElement('s'); x.className = 'nc'; x.textContent = fmtD(min); return x; }
+function difCelda(viejo, nuevo) {              // "2,00 → 3,00" resaltado
   const sp = document.createElement('span'); sp.className = 'dif';
-  const x = document.createElement('s'); x.textContent = fmtHM(viejo);
-  const b = document.createElement('b'); b.textContent = fmtHM(nuevo);
+  const x = document.createElement('s'); x.textContent = fmtD(viejo);
+  const b = document.createElement('b'); b.textContent = fmtD(nuevo);
   sp.appendChild(x); sp.appendChild(document.createTextNode(' → ')); sp.appendChild(b);
   return sp;
 }
 
 // Contenido de las columnas 50%, 100% y Faltante cuando no se está editando
 // Mismo criterio para las tres: verde = autorizado (cuenta), gris = calculado sin autorizar, rojo = cambió el cálculo
-function spanAut(min, clase) { const x = document.createElement('span'); x.className = clase; x.textContent = fmtHM(min); return x; }
+function spanAut(min, clase) { const x = document.createElement('span'); x.className = clase; x.textContent = fmtD(min); return x; }
 function contenidoAut(td, d, campo) {
   const raw = d.calc[campo];
   if (d.estado === 'cambio') {
@@ -1232,7 +1231,7 @@ function contenidoAut(td, d, campo) {
   const aut = campo === 'faltante' ? (raw - d.faltante) : d[campo];
   if (aut > 0) {
     td.appendChild(spanAut(aut, 'aut-ok'));
-    if (raw > aut) { td.appendChild(document.createTextNode(' ')); const r = spanAut(raw - aut, 'sin-aut'); r.textContent = '+' + r.textContent; r.title = 'Calculado y sin autorizar'; td.appendChild(r); td.title = 'Autorizado ' + fmtHM(aut) + ' de ' + fmtHM(raw) + ' calculado'; }
+    if (raw > aut) { td.appendChild(document.createTextNode(' ')); const r = spanAut(raw - aut, 'sin-aut'); r.textContent = '+' + r.textContent; r.title = 'Calculado y sin autorizar'; td.appendChild(r); td.title = 'Autorizado ' + fmtD(aut) + ' de ' + fmtD(raw) + ' calculado'; }
   } else td.appendChild(spanAut(raw, 'sin-aut'));
 }
 
@@ -1370,7 +1369,7 @@ function renderInforme(r) {
     if (d.ausente) { tdT.appendChild(document.createTextNode(' ')); const b = badge('Ausente', 'aus'); b.title = d.ausente.motivo + ' (' + d.ausente.gestor + ', ' + d.ausente.cuando + ')'; tdT.appendChild(b); }
     if (d.estado === 'cambio') {
       const bc = badge('Cambió', 'cambio');
-      const lin = (o) => (o.comp ? 'comp.: ' + fmtHM(o.comp) + ', ' : '') + '50%: ' + fmtHM(o.c50) + ', 100%: ' + fmtHM(o.c100) + ', faltante: ' + fmtHM(o.faltante);
+      const lin = (o) => (o.comp ? 'comp.: ' + fmtD(o.comp) + ', ' : '') + '50%: ' + fmtD(o.c50) + ', 100%: ' + fmtD(o.c100) + ', faltante: ' + fmtD(o.faltante);
       bc.title = 'Autorizado el ' + d.aut.cuando + ' por ' + d.aut.gestor + ' (' + lin(d.aut) + ').\nCuando se autorizó el sistema calculaba: ' + lin(d.snap) + '.\nAhora calcula: ' + lin(d.calc) + '.\nNo cuenta hasta que lo confirmes de nuevo.';
       tdT.appendChild(document.createTextNode(' ')); tdT.appendChild(bc);
     }
@@ -1382,8 +1381,8 @@ function renderInforme(r) {
     // total y normal (lo que cuenta)
     ['total', 'normal', 'comp'].forEach(c => {
       const td = document.createElement('td'); td.className = 'num';
-      if (d.ausente && d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = fmtHM(d[c] || 0);
-      if (c === 'comp' && d.comp) td.title = 'Faltó completar la jornada y se compensó con ' + fmtHM(d.comp) + ' de extra del mismo día: cuenta como horas normales.';
+      if (d.ausente && d.orig && d.orig[c]) td.appendChild(tachado(d.orig[c])); else td.textContent = fmtD(d[c] || 0);
+      if (c === 'comp' && d.comp) td.title = 'Faltó completar la jornada y se compensó con ' + fmtD(d.comp) + ' de extra del mismo día: cuenta como horas normales.';
       tr.appendChild(td);
     });
     // 50%, 100% y faltante
@@ -1423,7 +1422,7 @@ function renderInforme(r) {
     filas.forEach(d => { if (d.ausente) return; Object.keys(s).forEach(k => { s[k] += d[k] || 0; }); });
     const tr = document.createElement('tr'); tr.className = 'fila-suma';
     const t0 = document.createElement('td'); t0.colSpan = 4; t0.textContent = 'Suma de las filas mostradas'; tr.appendChild(t0);
-    const cel = (min, span) => { const td = document.createElement('td'); td.className = 'num'; if (span) td.colSpan = span; td.textContent = fmtHM(min); tr.appendChild(td); return td; };
+    const cel = (min, span) => { const td = document.createElement('td'); td.className = 'num'; if (span) td.colSpan = span; td.textContent = fmtD(min); tr.appendChild(td); return td; };
     cel(s.total);
     cel(s.normal + s.comp, 2).title = 'Normal + compensación';
     cel(s.c50); cel(s.c100); cel(s.faltante);
@@ -1527,7 +1526,7 @@ $('inf-lista').addEventListener('click', async ev => {
       if (d.estado === 'cambio' && item.c50 + item.c100 + item.faltante === 0) sinConfirmar++;
       items.push(item);
     });
-    if (hayError) { toast('Revisá las cantidades marcadas en rojo: tienen que ser H:MM y no superar lo calculado', 'error'); return; }
+    if (hayError) { toast('Revisá las cantidades marcadas en rojo: tienen que ser horas decimales (ej. 2,5) y no superar lo calculado', 'error'); return; }
     if (!items.length) { toast('No hay cambios para guardar', 'error'); return; }
     if (sinConfirmar && !confirm(sinConfirmar + ' fila(s) con cambios en el cálculo quedan sin autorizar porque no las tildaste. ¿Guardar igual?')) return;
     await conSpinner(b, 'Guardando...', async () => {
