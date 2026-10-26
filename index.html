@@ -793,6 +793,7 @@ function cerrarSesion(motivo) {
   localStorage.setItem('rj_sesion_cerrada', '1');
   localStorage.removeItem('rj_jornada_activa');       // el estado real vive en el Sheet y se recupera al volver a entrar
   localStorage.removeItem('rj_ultima_actividad');
+  localStorage.removeItem('rj_ultima_jornada');
   if (motivo) { try { sessionStorage.setItem('rj_aviso_login', motivo); } catch (e) {} }
   location.reload();                                   // recarga limpia: sin datos del usuario anterior en pantalla
 }
@@ -929,6 +930,7 @@ document.getElementById('input-nombre').addEventListener('input', () => {
 function sesionInvalida() {
   localStorage.removeItem('rj_user_id');
   localStorage.removeItem('rj_jornada_activa');
+  localStorage.removeItem('rj_ultima_jornada');
   STATE.userId = null;
   STATE.jornadaActiva = null;
   document.getElementById('input-nombre').value = STATE.usuario || '';
@@ -984,6 +986,7 @@ document.getElementById('btn-guardar-config').addEventListener('click', async ()
     } else if (data.estado === 'DEBE_CAMBIAR') {
       obMostrarPaso('nueva');
     } else if (data.estado === 'OK' && data.token) {
+      if (localStorage.getItem('rj_usuario') !== nombre) localStorage.removeItem('rj_ultima_jornada');   // otro usuario en este equipo
       localStorage.setItem('rj_usuario', nombre);
       localStorage.setItem('rj_user_id', data.token);
       localStorage.removeItem('rj_sesion_cerrada');
@@ -1169,6 +1172,7 @@ function actualizarUIJornada() {
     if (ultima) {
       try {
         const u = JSON.parse(ultima);
+        if (!u.usuario || u.usuario !== STATE.usuario) throw new Error('de otro usuario');   // solo se muestra la del usuario actual
         cardUltima.style.display = '';
         pill.className = 'status-pill ended';
         statusTxt.textContent = 'Jornada finalizada';
@@ -1393,6 +1397,7 @@ async function finalizarJornada() {
   if (!resultado) return;
 
   localStorage.setItem('rj_ultima_jornada', JSON.stringify({
+    usuario: STATE.usuario,
     inicio: inicioGuardado,
     fin: fechaHoraFin.toISOString()
   }));
